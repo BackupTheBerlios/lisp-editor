@@ -5,7 +5,6 @@
 
 (in-package #:lisp-ed)
 
-(defun start ()
+(defun start (&key (layout #'default-layout))
   (with-ltk ()
-    (let )))
-
+    (funcall layout)))

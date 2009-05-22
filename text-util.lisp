@@ -7,14 +7,27 @@
   (format-wish "senddatastring [~a get 1.0 end-1c]" (widget-path text))
   (read-data))
 
+;;; This replaces the current LTK implementation of this method due to a bug
+;;; see: http://common-lisp.net/pipermail/ltk-user/2008-September/000304.html
+(defmethod place (widget x y &key width height)
+  (format-wish "place ~A -x ~A -y ~A~@[ -width ~a~]~@[ -height ~a~]"
+    (widget-path widget)
+    (tk-number x) (tk-number y)
+    (and width (tk-number width))
+    (and height (tk-number height)))
+  widget)
+
 (in-package #:lisp-ed)
+
+(defun read-data ()
+  (ltk:read-data))
 
 (defmacro def-text-fun (name &body body)
   `(defun ,name (text)
      (declare (type text text))
      ,@body))
 
-(def-text-fun get-cursor-pos (text)
+(def-text-fun get-cursor-pos
   (format-wish "senddatastring [~a index insert]" (widget-path text))
   (read-data))
 

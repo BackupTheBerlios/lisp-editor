@@ -11,7 +11,9 @@
                            :text "Press Me"
                            :command (lambda ()
                                       (format t "Hello World!~&")))))
-     (pack b))))
+     (pack b)
+     (pack (make-instance 'text) :side :bottom)
+     (pack (make-instance 'text) :side :left))))
 
 
 (hello-1)
