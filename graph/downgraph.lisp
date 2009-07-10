@@ -3,7 +3,7 @@
   (:use #:common-lisp #:iterate #:ltk)
   (:export by-symbol by-link with-by-symbol
 	   add-link to-tree reverse-graph
-	   do-by-dist do-by-link collect-by-dist
+	   do-by-dist list-by-dist do-by-link
 	   optimized-collected-by-dist))
 
 (in-package #:down-graph)
@@ -82,6 +82,9 @@ Returns nil. WARNING you _cannot_ print them (nor can your editor)"
 		 (appending (list el t)))))
   "Partially prints a graph, different lines representing different\
  distances from one of the 'from'."
+  (declare (type list from graph done)
+	   (type function do-fn)
+	   (type integer depth))
   (when (or (<= depth 0) (null from))
     (return-from do-by-dist))
   (funcall do-fn from)
@@ -92,6 +95,14 @@ Returns nil. WARNING you _cannot_ print them (nor can your editor)"
 			  (setf done (append done (list sym t)))
 			  (collect el)))))))
     (do-by-dist from graph (- depth 1) do-fn done)))
+
+(defun list-by-dist (from graph depth
+		     &optional (done (iter (for el in from)
+					   (appending (list el t)))))
+  "Makes a list by distance from FROM."
+  (iter (do-by-dist from graph depth
+		    (lambda (list) (collect list)) done)
+	(finish)))
 
 (defun true-fun (&rest args)
   (declare (ignore args))
@@ -115,9 +126,3 @@ Predicate works only on 3rd argument, you have to ignore others yourself."
 		    (funcall do-fn k j b el)))))))))
 
 (defun sqr (x) (* x x))
-
-(defun collect-by-dist (from graph depth)
-  "Collects elements based on distance from FROM, up to depth."
-  (iter
-    (do-by-dist from graph depth (lambda (list) (collect list)))
-    (finish)))

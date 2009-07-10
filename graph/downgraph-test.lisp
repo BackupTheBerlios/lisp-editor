@@ -1,6 +1,7 @@
 
 (defpackage :test
   (:use :common-lisp :down-graph :down-graph-draw :ltk :code-scan))
+
 (in-package :test)
 
 (do-by-dist '(a) (by-link '((a b c) (b a d e) (c q d)
@@ -90,9 +91,30 @@
 	    (lambda (el)
 	      (or (string= (package-name (symbol-package el)) "CODE-SCAN")
 		  (string= (package-name (symbol-package el)) "DOWN-GRAPH"))))
-	      
 
-(assoc 'code-scan:scanning-macrohook (car *function-links*))
+(defun draw (from graph depth
+	     &key (canvas (make-instance 'canvas))
+	          (predicate #'true-fun))	     
+  (let*((by-dist (list-by-dist from graph depth))
+	(rect-by-dist (get-rect-positions by-dist :predicate predicate)))
+   ; (rect-by-dist-drift rect-by-dist graph)
+    (with-ltk ()
+      (pack canvas)
+      (optimize-rect-by-dist rect-by-dist graph :cnt 16)
+      (ltk-draw-from rect-by-dist graph :canvas canvas))))
+
+(draw '(code-scan:scanning-macrohook) (car code-scan:*function-links*) 10
+      :canvas (make-instance 'canvas :width 1300 :height 1000)
+      :predicate (lambda (el)
+		   (or (string= (package-name (symbol-package el)) "CODE-SCAN")
+		       (string= (package-name (symbol-package el)) "DOWN-GRAPH"))))
+
+
+
+(assoc 'code-scan:scanning-macrohook (car *function-links*)
+
+       
+
 ;    (ltk-by-dist '(a) '((a b c) (b c d e) (c q d)
 ;			(q r) (r s) (s t)) 4
 ;		 canvas)))
