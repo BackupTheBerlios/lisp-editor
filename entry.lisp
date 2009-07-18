@@ -11,7 +11,19 @@
 		       (back-from-entry)))
   "Functions associated with completion of entry. :default-fun is for nil.")
 
+(defmacro def-entry-fun ((name &key (evt)) &body body)
+  "Defines an entry function."
+  (with-gensyms (may-evt)
+    `(setf (getf *entry-funs*)
+	   (lambda (,(if-use evt may-evt))
+	     ,@(when (and (cdr body) (stringp (car body)))
+		 (list (car body)))
+	     ,@(unless evt
+		 `((declare (ignore ,may-evt))))
+	     ,@body))))	  
+
 (defun to-entry (from with-mode)
+  (declare (ignore from))
   (lambda (evt)
     (declare (ignore evt))
     (setf *entry-mode* with-mode)
@@ -20,27 +32,18 @@
 (defun back-from-entry ()
   (format-wish "focus ~a" (widget-path (car *buffers*))))
 
-(setf (getf *entry-funs* :open-file)
-      (lambda (evt) ;TODO regexpression, looking at filesystem.
-	(load-text (car *buffers*) (text *entry*))
-	(back-from-entry)))
-
-(setf (getf *entry-funs* :save-file)
-      (lambda (evt)
-	(save-text (car *buffers*) (text *entry*))
-	(back-from-entry)))
-
 (defun make-default-entry (&key (alternative-return "<Control-Key-g>"))
   (let ((entry (make-instance 'text :height 1)))
     (bind entry "<Return>"
 	  (lambda (evt)
-	    (if-with fun (getf *entry-funs* *entry-mode*)
+	    (if-let fun (getf *entry-funs* *entry-mode*)
 	      (funcall fun evt)
 	      (funcall (getf *entry-funs* :default-fun) evt)))
 	  :exclusive t)
     (flet ((return-from-entry (&rest evts)
 	     (dolist (e evts)
 	       (bind entry e (lambda (evt)
+			       (declare (ignore evt))
 			       (back-from-entry))))))
       (return-from-entry "<Escape>" alternative-return))
     entry))

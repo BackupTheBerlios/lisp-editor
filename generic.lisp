@@ -22,17 +22,17 @@
 (defpackage #:generic
   (:nicknames #:gen)
   (:use #:common-lisp #:iterate)
-  (:export sqr swap delist
+  (:export sqr
+	   swap delist
            with-gensyms for-more setf-
-	   if-with if-use when-with case-with cond-with
+	   if-let if-use when-let case-let
+	   cond* ift when-do
 	   string-case
 	   in-list clamp
 	   before-out
-	   and* or*
-	   with-values-in-argument))
+	   and* or*))
 
 (in-package #:generic)
-
 
 (defun sqr(x) (* x x))
 
@@ -62,48 +62,89 @@ variable. (It is in the macro output, of course.)"
        ,@before
        ,ret))))
 
-(defmacro when-have-packages ((&rest packages) &body body)
-"Proceeds to body when find-package returns the package for all the packages.
- (Good for when you depend on them.)"
-  `(when (and ,@(loop for el in packages
-		   collect t));))`(find-package ,el)))
-     ,@body))
-
 (defmacro for-more (macroname &rest args)
-"Applies a series of different arguments to same function."
+  "Applies a series of different arguments to same function."
   (cons 'progn
      (loop for el in args
 	collect (cons macroname el))))
 
 (defmacro setf- (operator set &rest args)
-"Changes 'set argument with setf using given operator, and extra arguments.
-WARNING/TODO: abstraction leak if set has sideeffects."
+  "Changes 'set argument with setf using given operator, and extra\
+ arguments. WARNING/TODO: abstraction leak if set has sideeffects."
   `(setf ,set (,operator ,set ,@args)))
 
-(defmacro if-with (var cond if-t &optional (if-f nil))
-"Makes a variable var set by cond, and them does if-t if non-nil and
+(defmacro if-let (var cond if-t &optional (if-f nil))
+  "Makes a variable var set by cond, and them does if-t if non-nil and
  (optionally)if-f else."
   `(let ((,var ,cond))
     (if ,var ,if-t ,if-f)))
-(defmacro if-use (cond &optional if-f)
-"Executes cond, if it returns non-nil, returns it, else returns if-f output."
-  (with-gensyms (var)
-    `(if-with ,var ,cond ,var ,if-f)))
 
-(defmacro when-with (var cond &body body)
+(defmacro if-use (&rest conds)
+  "Returns the first one that returns non-nil."
+  (if (null(cdr conds))
+    (car conds)
+    (with-gensyms (var)
+      `(if-let ,var ,(car conds) ,var
+	 (if-use ,@(cdr conds))))))
+
+(defmacro when-let (var cond &body body)
   "When, but with the condition, var available."
-  `(if-with ,var ,cond (progn ,@body) nil))
+  `(if-let ,var ,cond (progn ,@body) nil))
 
-(defmacro case-with (var is &rest cases)
+(defmacro case-let (var is &rest cases)
+  "Case, but makes a variable for you."
   `(let ((,var ,is))
      (case ,var ,@cases)))
 
-(defmacro cond-with (varname &rest clauses)
-  "Cond, except before each clause comes a variable that is that clause.
-TODO untested."
-  `(let (,varname)
-     (cond ,@(loop for c in clauses
-		collect `((setf ,varname ,(car c)) ,@(cddr c))))))
+(defmacro cond* (&rest clauses)
+  "Cond where keywords at start of clauses mean things.
+:let makes a single conditition a variable for you, available in body.
+:with(*) makes a bunch of variables which is then available for the clause\
+ condition and body.
+:or-let(*) and :and-let make you a series of variables that all have to be\
+ true/false."
+  (flet ((make-multi-let-type (c i let comb)
+	   `(t (,let (,@(cadr c))
+		 (if (,comb ,@(iter (for el in (cadr c))
+				    (collect (car el))))
+		   (progn ,@(cddr c))
+		   (cond* ,@(cdr i))))))
+	 (make-with (c i let)
+	   `(t (,let (,@(cadr c))
+		 (if ,(caddr c)
+		   (progn ,@(cdddr c))
+		   (cond* ,@(cdr i)))))))
+  `(cond
+     ,@(iter (for i on clauses)
+	     (for c in clauses)
+	     (case (car c)
+	       (:with    (collect (make-with c i 'let))
+			 (finish))
+	       (:with*   (collect (make-with c i 'let*))
+			 (finish))
+	       (:let
+		(collect `(t (if-let ,(cadr c) ,(caddr c)
+				(progn ,@(cdddr c))
+				(cond* ,@(cdr i)))))
+		(finish))			     
+	       (:or-let  (collect (make-multi-let-type c i 'let 'or)))
+	       (:or-let* (collect (make-multi-let-type c i 'let* 'or)))
+	       (:and-let (collect (make-multi-let-type c i 'let 'and)))
+	       (:and-let*(collect (make-multi-let-type c i 'let* 'and)))
+	       (t        (collect c)))))))
+
+(defmacro ift (manner self &rest with)
+  "Returns itself if `(,manner ,self ,@with) true."
+  (with-gensyms (s)
+    `(let ((,s ,self))
+      (when (,manner ,s ,@with)
+	,s))))
+
+(defmacro when-do (cond &rest do)
+  "return-from the condition, if the condition is true."
+  (with-gensyms (s)
+    `(when-let ,s ,cond
+       (,@do ,s))))
 
 (defmacro string-case (string &rest cases)
   "A case for strings."
@@ -114,7 +155,7 @@ TODO untested."
 		`((string= ,string ,(car el)) ,(cadr el))))))
 
 (defmacro let-from-list ((&rest vars) list)
-"Sets given variables vars according to list, as far as possible."
+  "Sets given variables vars according to list, as far as possible."
   (with-gensyms (tmp)
     `(let ((,tmp ,list))
      (let 
@@ -124,18 +165,19 @@ TODO untested."
 	    
 
 (defun in-list (list what)
-"Returns whether what is in list."
+  "Returns whether what is in list."
   (do ((i list (cdr i)))
       ((or (null i) (eql (car i) what))  (car i))))
 
 (defun clamp (clamped from to)
+  "Clamp between two values."
   (cond ((< clamped from) from)
 	((> clamped to)   to)
 	(t                clamped)))
 
 (defmacro and* (&rest args)
-"And, but executed in sequence. (You can rely on previous entries being true.)
-More clear then the ifs used explicitly IMO."
+  "And, but executed in sequence. (You can rely on previous entries being\
+ true.)"
   (if (null(cdr args))
      (car args)
     `(if ,(car args)
@@ -143,15 +185,9 @@ More clear then the ifs used explicitly IMO."
 	 nil)))
 
 (defmacro or* (&rest args)
-"Sequential or."
+  "Sequential or."
   (if (null(cdr args))
     (car args)
     `(if ,(car args)
 	 t
 	 (or* ,@(cdr args)))))
-
-(defmacro with-values-in-argument (function values cnt
-				   &optional before after)
-  (let ((gensyms (loop repeat cnt collect (gensym))))
-    `(multiple-value-bind (,@gensyms) ,values
-       (,function ,@before ,@gensyms ,@after))))

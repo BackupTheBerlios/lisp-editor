@@ -10,8 +10,8 @@
     (setf- + *event-counter* 1) ;Keep count on these events.
     (if (null *event-mode*)
       (funcall fun evt)
-      (when-with alt (getf *events* *event-mode*)
-	(when-with fun (gethash event alt)
+      (when-let alt (getf *events* *event-mode*)
+	(when-let fun (gethash event alt)
 	  (funcall fun evt))))))
 
 (defmacro with-binding (obj &body body)
@@ -20,7 +20,7 @@
        (flet ((bind-obj (event fun &key append (exclusive t))
 		(bind ,objv event
 		      (make-event event (lambda (evt)
-					  (declare (ignored evt))
+					  (declare (ignore evt))
 					  (funcall fun ,objv)))
 		      :append append :exclusive exclusive))
 	      (bind-obj-evt (event fun &key append (exclusive t))
@@ -34,7 +34,7 @@
 	      (bind-fn (event fun &key append (exclusive t))
 		(bind ,objv event
 		      (make-event event (lambda (evt)
-					  (declare (ignored evt))
+					  (declare (ignore evt))
 					  (funcall fun)))
 		      :append append :exclusive exclusive))
 	      (bind-activate (event &key append (exclusive t))
@@ -42,7 +42,7 @@
  enough to detect if events are already taken."
 		(bind ,objv event
 		      (make-event event (lambda (evt)
-					  (declare (ignored evt))))
+					  (declare (ignore evt))))
 		      :append append :exclusive exclusive)))
 	 ,@body))))
 
@@ -61,7 +61,7 @@
 	       (bind-activate event))
 	     (add-moded-event mode event
 	       (lambda (case)
-		 (declare (ignored case))
+		 (declare (ignore case))
 		 (setf *event-mode* nil)))))
       (bind-fn "<Control-Key-x>"
 	       (lambda () (setf *event-mode* :x)))
@@ -79,7 +79,7 @@
   (with-binding text
     (add-moded-event :x "<Control-Key-o>"
 		     (lambda (case)
-		       (declare (ignored case))
+		       (declare (ignore case))
 		       (rotate-buffer-focus)
 		       (setf *event-mode* nil)))
     (bind-activate "<Control-Key-o>")))
@@ -118,15 +118,6 @@
 	(move-cursor-pos text -1)
 	(let ((len (length (get-current-word-before-cursor text))))
 	  (move-cursor-pos text (- len)))))))
-
-(defun evaluate-binding (text)
-  (with-binding text
-    (bind-obj "<Alt-Key-x>"
-     (lambda (text) ;TODO incorporate scanning.
-       (setf (text *entry*)
-	     (format nil "~D"
-		     (eval (read-from-string
-		     (get-current-expression text)))))))))
 
 ;;TODO
 ;(defun goto-binding (text)

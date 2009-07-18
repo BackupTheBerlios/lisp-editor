@@ -33,11 +33,24 @@
 			   :junk-allowed junk-allowed))))
 
 (defun get-cursor-pos (text)
+  "(values character-nr line-nr)"
   (format-wish "senddatastring [~a index insert]" (widget-path text))
   (read-data))
 
-(defun get-read-cursor-pos (text &key junk-allowed)
-  (read-tk-pos (get-cursor-pos text) :junk-allowed junk-allowed))
+(defun get-cursor-line (text &key junk-allowed)
+  (multiple-value-bind (col line)
+      (read-tk-pos (get-cursor-pos text) :junk-allowed junk-allowed))
+    (declare (ignore col))
+    line))
+
+(defgeneric set-cursor-pos (widget pos) ;Note: being inconsistent here.
+  (:documentation "Sets the position of the cursor in the widget"))
+
+(defmethod set-cursor-pos ((text text) pos)
+  (format-wish "~a mark set insert ~a" (widget-path text) pos))
+
+(defmethod set-cursor-pos ((ent entry) pos)
+  (format-wish "~a icursor ~a" (widget-path ent) pos))
 
 (defun get-current-word (text)
   (format-wish
@@ -130,7 +143,7 @@ in lisp-ed, or your expression is above the limit.")
     (widget-path text)
     (if (> count 0) #\+ #\-) (if (> count 0) count (- count))))
 
-(defun forward-from-position (pos count)
+(defun forward-from-position (text count)
   "TODO WARNING only on a single line."
   (multiple-value-bind (line ch) (get-read-cursor-pos text)
     (format nil "~D.~D" line (+ ch count))))
