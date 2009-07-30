@@ -1,41 +1,43 @@
-;;
-;;  Copyright (C) 2009-02-07 Jasper den Ouden.
-;;
-;;  This file is part of Lang(working title).
-;;
-;;  Lang is free software: you can redistribute it and/or modify
-;;  it under the terms of the GNU Affero General Public License as published
-;;  by the Free Software Foundation, either version 3 of the License, or
-;;  (at your option) any later version.
-;;
-;;  Lang is distributed in the hope that it will be useful,
-;;  but WITHOUT ANY WARRANTY; without even the implied warranty of
-;;  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-;;  GNU Affero General Public License for more details.
-;;
-;;  You should have received a copy of the GNU Affero General Public License
-;;  along with Lang.  If not, see <http://www.gnu.org/licenses/>.
-;;
-
-(require :iterate)
+;;Author: Jasper den Ouden
+;;This file is in public domain.
 
 (defpackage #:generic
   (:nicknames #:gen)
   (:use #:common-lisp #:iterate)
   (:export sqr
+<<<<<<< .merge_file_EnfrYO
+	   delist
+=======
 	   swap delist
+>>>>>>> .merge_file_KRd2BM
            with-gensyms for-more setf-
 	   if-let if-use when-let case-let
 	   cond* ift when-do
 	   string-case
+<<<<<<< .merge_file_EnfrYO
+	   clamp)
+  (:documentation "Assortment of little useful macros/functions."))
+=======
 	   in-list clamp
 	   before-out
 	   and* or*))
+>>>>>>> .merge_file_KRd2BM
 
 (in-package #:generic)
 
+<<<<<<< .merge_file_EnfrYO
+(defun sqr(x)
+  "Square of a value."
+  (* x x))
+=======
 (defun sqr(x) (* x x))
+>>>>>>> .merge_file_KRd2BM
 
+<<<<<<< .merge_file_EnfrYO
+(defun delist (x)
+  "If list, return car, otherwise itself."
+  (if (listp x) (car x) x))
+=======
 (defun delist (x) (if (listp x) (car x) x))
 
 (defmacro swap (a b &optional tmp)
@@ -46,6 +48,7 @@
     (if tmp
       `(progn ,@out)
       `(let (,tmp2) ,@out))))
+>>>>>>> .merge_file_KRd2BM
 
 (defmacro with-gensyms ((&rest vars)&body body)
 "Makes you some variables with gensyms output in them."
@@ -53,6 +56,8 @@
 		 (collect `(,el (gensym)))))
      ,@body))
 
+<<<<<<< .merge_file_EnfrYO
+=======
 (defmacro before-out ((&body out) &body before)
 "Allows you to have a body after something you want to return without temporary 
 variable. (It is in the macro output, of course.)"
@@ -62,6 +67,7 @@ variable. (It is in the macro output, of course.)"
        ,@before
        ,ret))))
 
+>>>>>>> .merge_file_KRd2BM
 (defmacro for-more (macroname &rest args)
   "Applies a series of different arguments to same function."
   (cons 'progn
@@ -162,18 +168,23 @@ variable. (It is in the macro output, of course.)"
        ,(loop for var in vars 
 	      for i from 0
 	  collect `(,var (nth ,i ,tmp)))))))
+<<<<<<< .merge_file_EnfrYO
+=======
 	    
 
 (defun in-list (list what)
   "Returns whether what is in list."
   (do ((i list (cdr i)))
       ((or (null i) (eql (car i) what))  (car i))))
+>>>>>>> .merge_file_KRd2BM
 
 (defun clamp (clamped from to)
   "Clamp between two values."
   (cond ((< clamped from) from)
 	((> clamped to)   to)
 	(t                clamped)))
+<<<<<<< .merge_file_EnfrYO
+=======
 
 (defmacro and* (&rest args)
   "And, but executed in sequence. (You can rely on previous entries being\
@@ -191,3 +202,4 @@ variable. (It is in the macro output, of course.)"
     `(if ,(car args)
 	 t
 	 (or* ,@(cdr args)))))
+>>>>>>> .merge_file_KRd2BM

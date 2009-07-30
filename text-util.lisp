@@ -1,3 +1,4 @@
+;;This file has parts that came from Able. (See copyright-able.txt)
 
 (in-package #:ltk)
 
