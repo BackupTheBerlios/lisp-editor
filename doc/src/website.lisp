@@ -37,13 +37,15 @@
       ((:meta :name "description"
 	      :content "Main page of lisp-ed.")))
      (:p "Lisp-ed is a project to make a lisp editor, with a lot of\
- tools on it: Still, a lot to be done.(The TODOs are not exhaustive.)")
+ tools on it. There is still a lot to be done.(The TODOs are not exhaustive.)
+I also hope to share/combine work with "
+	 ((:a :href "http://phil.nullable.eu/")"Able") ".")
      ,(idem-name "Lisp-ed")
      (:p "Currently able to use both regular and emacs-like\
- copy-pasting and such. The function that starts the editor hass and\
- argument that is the function that makes various bindings. This function,
-however reads like a list. This way, one can just compose functions to set\
- ones the preferences.")
+ copy-pasting and such. The function that starts the editor has an\
+ argument that is a function that makes various bindings. The definition of this
+ function, however reads like a list. This way, one can just compose \
+functions to set ones the preferences.")
      (:p "Of course, code can be executed right from the buffer.")
      (:p "TODO"
 	 (:ul

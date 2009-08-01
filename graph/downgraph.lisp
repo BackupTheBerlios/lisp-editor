@@ -27,4 +27,4 @@
 	      (push a not)
 	      (push a result)))))
       (cons from
-	    (list-by-dist result graph (- depth 1) :all all)))))
+	    (list-by-dist result graph (- depth 1) :not not)))))
