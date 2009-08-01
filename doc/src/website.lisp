@@ -10,7 +10,7 @@
 (defvar *file-links* t)
 
 (defun idem-href (name &key (h3 :h3))
-  `((:a :href ,(format nil "#~D" name)) (,h3 ,name)))
+  `((:a :href ,(format nil "Main.html#~D" name)) (,h3 ,name)))
 
 (defun idem-name (name &key (h3 :h3))
   `((:a :name ,name) (,h3 ,name)))
@@ -40,7 +40,7 @@
  tools on it. There is still a lot to be done.(The TODOs are not exhaustive.)
 I also hope to share/combine work with "
 	 ((:a :href "http://phil.nullable.eu/")"Able") ".")
-     ,(idem-name "Lisp-ed")
+     ,(idem-name "Lisp-ed") ;Lisp-ed..
      (:p "Currently able to use both regular and emacs-like\
  copy-pasting and such. The function that starts the editor has an\
  argument that is a function that makes various bindings. The definition of this
@@ -53,9 +53,10 @@ functions to set ones the preferences.")
 	  (:li "Syntax highlighting.")
 	  (:li "(Optional)Noobie stuff, for inefficient mouse driven code.")
 	  (:li "The things relating to stuff below.")))
-     ,(idem-name "Code-scan")
-     (:p "Used to get all sorts of information out of the code.\
- Used to get links between functions and such.")
+     ,(idem-name "Code-scan") ;Code-scan.
+     (:p "Used to get allsorts of information out of the code.\
+ Used to get links between functions and such. "
+	 ((:a :href "code-scan-workings.html")"Here is how it works."))
      (:p "TODO"
 	 (:ul
 	  (:li "More symmetric handling of different macros, defun and\
@@ -66,7 +67,7 @@ functions to set ones the preferences.")
 	  (:li "Getting info about variables too")
 	  (:li "Putting information about links between functions/macros on\
  the function/macro trackers.")))
-     ,(idem-name "Autodoc")
+     ,(idem-name "Autodoc") ;Autodoc.
      (:p "Automatic documentation, that uses "
 	 ((:a :href "http://www.cliki.net/lml2")"LML2")
 " and documentation from code-scan.\
@@ -86,12 +87,39 @@ sort pages by whether they're external.")
 macros, functions variables etcetera. (CSS?)")
 	  (:li "Different fore and background color; white on black,\
  etcetera.")))
-     ,(idem-name "Mk-website")
+     ,(idem-name "Mk-website") ;Mk-website.
      (:p "Very simple website making tool.
 TODO is automatic linking; must keep working regardless of single page or\
  multiple pages.")
      (:h3 "Autodocumentation for this project")
-     ,@*autodoc-list*)))
+     ,@*autodoc-list*)
+    ("doc/code-scan-workings"
+     (:h3 "How codescan works")
+     "It works by calling the function that does the macroexpanding. Then\
+ it calls the scanning function on the result:"
+     (:ul
+      (:li "When it finds a s-expression for which (macro-function symbol)\
+ produces non-nil, for those it stops; the macroexpansion hook will pick it\
+ up.")
+      (:li "Looks for special-operator-p stuff, for a bunch of these, how\
+ the scanning continues is determined manually. If it isn't specified\
+ manually, it stops the scan.")
+      (:li "When not fboundp, it stops. This is still a problem for flet's,\
+ i don't know if it is for macrolet. (macroexpand '(macrolet ...)) doesn't\
+ seem to do anything, maybe macrolet can be replaced with something that\
+ immediately expands all of it's elements. Flets are still a problem."))
+     (:p "Some packages are ignored, like SBCL internal stuff: :sb-impl,\
+ :sb-int, :sb-c, :sb-pcl, :sb-kernel.")
+     (:p "Of course the scanning is to gather information. It has defvars\
+ to store the current function(or macro) in-fun, and it stores function\
+ usage in functions, links between functions in function-links, currently\
+ defmacro and defun are treated differently, and there is some undertested\
+ (probably doesn't work) code to more generally store information. I am\
+ planning to just have a function that is called at every level to treat\
+ everything more uniformly.(defun, defmacro no longer being special.) That\
+ way, autodoc(also in lisp-ed project), can also document macros made by\
+ the user, simply by providing a scanner and a documenter for the macro."
+	 ))))
 
 (let ((logo
        '((:a :href "http://developer.berlios.de")
@@ -100,7 +128,8 @@ TODO is automatic linking; must keep working regardless of single page or\
   (mk-website
    :contents
    `((:ul
-      (:li ,(idem-href "Lisp-ed"))
+      (:li (:p ,(idem-href "Lisp-ed"))
+	   (:p ((:a :href "code-scan-workings.html") "And how it works.")))
       (:li ,(idem-href "Code-scan"))
       (:li ,(idem-href "Autodoc"))
       (:li ,(idem-href "Mk-website")))

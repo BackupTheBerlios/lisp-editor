@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="iso-8859-1" standalone="yes"?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml"><body><table><tbody><tr><h1>Lisp-ed</h1></tr><tr><td valign="top"><ul><li><p><a href="Main.html#Lisp-ed"><h3>Lisp-ed</h3></a></p><p><a href="code-scan-workings.html">And how it works.</a></p></li><li><a href="Main.html#Code-scan"><h3>Code-scan</h3></a></li><li><a href="Main.html#Autodoc"><h3>Autodoc</h3></a></li><li><a href="Main.html#Mk-website"><h3>Mk-website</h3></a></li></ul><hr /><h4>Autodocumentation:</h4><h4>GENERIC</h4><p><a href="autodoc/generic/Documentation.html">Single-page</a></p><p><a href="autodoc/generic/Contents.html">List of pages</a></p><h4>LISP-ED</h4><p><a href="autodoc/lisp-ed/Documentation.html">Single-page</a></p><p><a href="autodoc/lisp-ed/Contents.html">List of pages</a></p><h4>DOWN-GRAPH</h4><p><a href="autodoc/down-graph/Documentation.html">Single-page</a></p><p><a href="autodoc/down-graph/Contents.html">List of pages</a></p><h4>DOWN-GRAPH-DRAW</h4><p><a href="autodoc/down-graph-draw/Documentation.html">Single-page</a></p><p><a href="autodoc/down-graph-draw/Contents.html">List of pages</a></p><h4>AUTODOC</h4><p><a href="autodoc/autodoc/Documentation.html">Single-page</a></p><p><a href="autodoc/autodoc/Contents.html">List of pages</a></p><h4>MK-WEBSITE</h4><p><a href="autodoc/mk-website/Documentation.html">Single-page</a></p><p><a href="autodoc/mk-website/Contents.html">List of pages</a></p></td><td><h3>How codescan works</h3>It works by calling the function that does the macroexpanding. Then
+ it calls the scanning function on the result:<ul><li>When it finds a s-expression for which (macro-function symbol)
+ produces non-nil, for those it stops; the macroexpansion hook will pick it
+ up.</li><li>Looks for special-operator-p stuff, for a bunch of these, how
+ the scanning continues is determined manually. If it isn't specified
+ manually, it stops the scan.</li><li>When not fboundp, it stops. This is still a problem for flet's,
+ i don't know if it is for macrolet. (macroexpand '(macrolet ...)) doesn't
+ seem to do anything, maybe macrolet can be replaced with something that
+ immediately expands all of it's elements. Flets are still a problem.</li></ul><p>Some packages are ignored, like SBCL internal stuff: :sb-impl,
+ :sb-int, :sb-c, :sb-pcl, :sb-kernel.</p><p>Of course the scanning is to gather information. It has defvars
+ to store the current function(or macro) in-fun, and it stores function
+ usage in functions, links between functions in function-links, currently
+ defmacro and defun are treated differently, and there is some undertested
+ (probably doesn't work) code to more generally store information. I am
+ planning to just have a function that is called at every level to treat
+ everything more uniformly.(defun, defmacro no longer being special.) That
+ way, autodoc(also in lisp-ed project), can also document macros made by
+ the user, simply by providing a scanner and a documenter for the macro.</p></td></tr><tr><a href="http://developer.berlios.de"><img src="http://developer.berlios.de/bslogo.php?group_id=0" width="124" height="32" border="0" alt="BerliOS Logo" /></a></tr></tbody></table></body></html>
