@@ -14,10 +14,8 @@
 (defmacro def-entry-fun ((name &key (evt)) &body body)
   "Defines an entry function."
   (with-gensyms (may-evt)
-    `(setf (getf *entry-funs*)
+    `(setf (getf *entry-funs* ,name)
 	   (lambda (,(if-use evt may-evt))
-	     ,@(when (and (cdr body) (stringp (car body)))
-		 (list (car body)))
 	     ,@(unless evt
 		 `((declare (ignore ,may-evt))))
 	     ,@body))))	  

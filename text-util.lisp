@@ -40,7 +40,7 @@
 
 (defun get-cursor-line (text &key junk-allowed)
   (multiple-value-bind (col line)
-      (read-tk-pos (get-cursor-pos text) :junk-allowed junk-allowed))
+      (read-tk-pos (get-cursor-pos text) :junk-allowed junk-allowed)
     (declare (ignore col))
     line))
 

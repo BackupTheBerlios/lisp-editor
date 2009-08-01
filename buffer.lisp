@@ -46,12 +46,12 @@
 (defun go-to-file (file-name)
   "Goes to the file in question."
   (cond*
-   (:let b-el (find-buffer-el to-file-name 'file-name)
+   (:let b-el (find-buffer-el file-name 'file-name)
      (buffer-to-elements)
      (element-to-buffer b-el))
    (t
     (buffer-to-elements)
-    (load-text (car *buffers*) to-file-name) ;TODO what of inexistance file?
+    (load-text (car *buffers*) file-name) ;TODO what of inexistance file?
     (with-slots (file-name buffer-name) (car *buffers*)
       (do ((k 0 (+ k 1)) ;Find a good name. (Can't be file name when taken.)
 	   (name file-name (format nil "~D-~D" file-name k)))

@@ -12,8 +12,8 @@
   (emacs-like-cursor-motion text)
   (event-mode-bindings text)
   (selection-bindings text)
-  (file-operations text)
-  (evaluate-binding text))
+  (file-operations text))
+;  (evaluate-binding text)) ;TODO fix the code and re-enable.
 
 (defun default-layout (&key (buffer-preset #'default-buffer-bindings))
   (let ((frame (make-instance 'frame :takefocus t)))
