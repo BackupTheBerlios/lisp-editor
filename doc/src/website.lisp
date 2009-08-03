@@ -87,6 +87,13 @@ sort pages by whether they're external.")
 macros, functions variables etcetera. (CSS?)")
 	  (:li "Different fore and background color; white on black,\
  etcetera.")))
+     (:h3 ((:a :name "get-it")"Getting lisp-ed"))
+     "Lisp-ed can be obtained via "
+     ((:a :href "http://developer.berlios.de/git/?group_id=10956")"Git")
+     " or "
+     ((:a :href "http://download.berlios.de/gitdumps/lisp-editor-git.tar.gz")
+      "Berlios' dayly tarball of git")
+     
      ,(idem-name "Mk-website") ;Mk-website.
      (:p "Very simple website making tool.
 TODO is automatic linking; must keep working regardless of single page or\
@@ -132,7 +139,14 @@ TODO is automatic linking; must keep working regardless of single page or\
 	   (:p ((:a :href "code-scan-workings.html") "And how it works.")))
       (:li ,(idem-href "Code-scan"))
       (:li ,(idem-href "Autodoc"))
-      (:li ,(idem-href "Mk-website")))
+      (:li ,(idem-href "Mk-website"))
+      (:li
+       ((:a :href "#get-it") "Getting lisp-ed")
+       (:ul
+	(:li ((:a :href "http://developer.berlios.de/git/?group_id=10956")
+	      "With Git"))
+	(:li ((:a :href "http://download.berlios.de/gitdumps/lisp-editor-git.tar.gz")
+	      "Berlios' dayly tarball of git")))))
      (:hr)
      (:h4 "Autodocumentation:")
      ,@*autodoc-list*)
