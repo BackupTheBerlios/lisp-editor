@@ -2,18 +2,15 @@
 ;;; Written by John Fremlin at MSI (http://www.msi.co.jp) Released
 ;;; into the public
 ;;; domain. http://john.freml.in/macroexpand-dammit
+;;; Modified(much) by Jasper den Ouden.
 
-;;; Lightly tested on SBCL 1.0.29, ClozureCL 1.4-pre, Lispworks 5.1,
-;;; Allegro 8.1
+(cl:in-package :cl)
 
-;;Modified by Jasper den Ouden.
-
-(cl:defpackage #:macroexpand-dammit
+(defpackage #:expression-hook
   #+lispworks (:import-from #:lispworks #:compiler-let)
   (:use #:cl #:generic)
-  (:export #:macroexpand-dammit
-	   #:macroexpand-dammit-as-macro
-	   #:macroexpand-dammit-expansion)
+  (:export hook-expand expand-hook
+	   *expression-hook* *expression-hook-state*)
   (:documentation 
    "Transforms code to return a quoted version its macroexpansion\
  using the host lisp to implicitly augment the lexical environment.\
@@ -23,7 +20,7 @@
 ;;; Supports a few non-standard special forms for current (2009) Lisps.
 
 
-(cl:in-package #:macroexpand-dammit)
+(in-package #:expression-hook)
 
 (eval-when (:compile-toplevel :load-toplevel :execute) 
   (defvar *form-handler* (make-hash-table))
@@ -35,12 +32,10 @@
     "If not list, put in list."
     (if (listp x) x (list x))))
 
-(defvar *env*)
+(defvar *env* nil)
 
-(defvar *expression-hook* (lambda (form))
+(defparameter *expression-hook* 'expand-hook
   "Hook that reads every s-expression macroexpand-dammit encounters.")
-(defvar *expression-hook-state* nil
-  "State that the hook returns and is passed down.")
 
 (defun binding-to-symbol (binding)
   (let ((name (force-first binding)))
@@ -80,9 +75,6 @@
 		  collect `(gethash ',sym *form-handler*)
 		  collect `',func))))))
 
-(defun e-list (list)
-  "Expands a list of things to expand."
-  (mapcar 'e list))
 
 (defhandler (progn locally) (progn &rest body)
   `(list ',progn
@@ -148,6 +140,56 @@
 	  (list* (if (starts-with-declare) 'locally 'progn) forms))
 	 (t
 	  (first forms)))))
+
+(defun compiler-macroexpand-1 (form &optional *env*)
+  (let ((cm 
+	 (and (listp form) (function-name-p (first form)) 
+	      (compiler-macro-function (first form) *env*))))
+      (if cm
+	  (funcall *macroexpand-hook* cm form *env*)
+	  form)))
+
+(defun hook-expand (form)
+  "Only applies expression hook.
+If you want full expansion it should call expand-hook, defaultly, it does\
+ so."
+  (e form))
+
+(defun e (form)
+  (funcall *expression-hook* form))
+
+(defmacro m (form &environment *env*)
+  (e form))
+
+(defmacro m-list (&body body &environment *env*)
+  `(list ,@(e-list body)))
+
+(defun e-list (list)
+  "Expands a list of things to expand."
+  (mapcar 'e list))
+
+(defun expand-hook (form)
+  "See macroexpand-dammit-expansion."
+  (if-let handler-fn (and (listp form)
+			  (gethash (first form) *form-handler*))
+    (apply handler-fn form)
+    (multiple-value-bind (form expanded) (macroexpand-1 form *env*)
+      (cond
+	(expanded
+	 (e form))
+	(t
+	 (typecase form
+	   (null nil)
+	   (list
+	     (let ((next (compiler-macroexpand-1 form))) ;?Why would it do something?
+	       (if (eq form next)
+		 (apply ;Only place where default happens.
+		  (gethash (first form) 
+			   *form-handler* #'default-form-handler)
+		  form)
+		 (e next))))
+	   (t
+	    `',form)))))))
 
 (defun default-form-handler (first &rest rest)
   "Default handler of the form. "
@@ -289,56 +331,12 @@
 (defhandler quote (quote object)
   `(list ',quote ',object))
 
-(defun compiler-macroexpand-1 (form &optional *env*)
-  "Applies the compiler-macroexpander for forms."
-  (if-let cm (and (listp form) (function-name-p (first form)) 
-		  (compiler-macro-function (first form) *env*))
-    (funcall *macroexpand-hook* cm form *env*)
-    form))
-
-(defun e (form)
-  "See macroexpand-dammit-expansion."
-  (let ((*expression-hook-state* (funcall *expression-hook* form)))
-    (if-let handler-fn (and (listp form)
-			    (gethash (first form) *form-handler*))
-      (apply handler-fn form)
-      (multiple-value-bind (form expanded) (macroexpand-1 form *env*)
-	(cond
-	  (expanded
-	   (e form))
-	  (t
-	   (typecase form
-	     (null nil)
-	     (list
-	      (let ((next (compiler-macroexpand-1 form))) ;?Why would it do something?
-		(if (eq form next)
-		  (apply (gethash (first form) ;Only place where default happens.
-				  *form-handler* #'default-form-handler)
-			 form)
-		  (e next))))
-	     (t
-	      `',form))))))))
-
-(defmacro m (form &environment *env*)
-  (e form))
-
-(defmacro m-list (&body body &environment *env*)
-  `(list ,@(e-list body)))
-
-(defun macroexpand-dammit (form &optional *env*)
-  (eval (e form)))
-
-(defmacro macroexpand-dammit-as-macro (form)
-  "Effect of macroexpand-dammit-expansion, applied on input of macro."
-  (e form))
-(defun macroexpand-dammit-expansion (form &optional *env*)
-  "Expands the form in the environment given."
-  (e form))
-
+#|
 ;;; Some shenanigans to support running with or without swank
-(defun runtime-symbol (name package-name)
+ (defun runtime-symbol (name package-name)
   (or (find-symbol (symbol-name name)
 		   (or (find-package package-name) (error "No package ~A" package-name)))
       (error "No symbol ~A in package ~A" name package-name)))
-(defun macroexpand-dammit-string (str)
+ (defun macroexpand-dammit-string (str)
   (funcall (runtime-symbol 'apply-macro-expander 'swank) 'macroexpand-dammit str))
+|#

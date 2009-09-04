@@ -1,6 +1,7 @@
 
 (defpackage :autodoc
-  (:use :common-lisp :generic :iterate :lml2 :code-scan)
+  (:use :common-lisp :generic :iterate :lml2 :package-stuff
+	:code-scan)
   (:export autodoc arguments-text
 	   *package-locations* *pre-file* *directory*
 	   *single-file-page* 
@@ -24,36 +25,6 @@ Add documentation for your own macros by adding trackers with\
 ;; (As you can get it with that function.)
 
 (in-package :autodoc)
-
-;;Package tools.
-(defun to-package-name (x)
-  "Gets the package name from the x."
-  (cond ((packagep x) (package-name x))
-	((symbolp x)  (package-name (symbol-package x)))
-	((stringp x)  x)))
-
-(defun same-package (a b)
-  "Whether a and b are the same package."
-  (string= (to-package-name a) (to-package-name b)))
-
-(defun symbol-package> (a b)
-  "Compares symbols by comparing their package names with string>,\
- when string= the symbol-names are compared."
-  (let ((pkg-a (to-package-name a))
-	(pkg-b (to-package-name b)))
-    (cond ((string> pkg-a pkg-b) t)
-	  ((string= pkg-a pkg-b)
-	   (string> (symbol-name a) (symbol-name b))))))
-
-(defun one-of-packages (symbol package-list)
-  "If the package is in the symbol, returns that package."
-  (when (find-if (lambda (el)
-		   (same-package (if (packagep el) el (find-package el))
-				 symbol))
-		 package-list)
-    (symbol-package symbol)))
-
-;;Back on topic.
 
 (defvar *package-locations* (make-hash-table)
   "pre-file and directory of other packages.")

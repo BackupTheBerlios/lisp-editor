@@ -5,6 +5,8 @@
 (defvar *not-code-scan* nil)
 
 (load "generic.lisp")
+(load "package-stuff.lisp")
+
 ;Graph(drawing) and code scanning.
 (load "graph/downgraph.lisp")
 (load "graph/downgraph-draw.lisp")
