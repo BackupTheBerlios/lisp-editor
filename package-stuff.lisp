@@ -9,8 +9,10 @@
 
 (defun to-package-name (x)
   "Gets the package name from the x."
-  (cond ((packagep x) (package-name x))
-	((symbolp x)  (package-name (symbol-package x)))
+  (cond ((null x) "")
+        ((packagep x) (package-name x))
+	((symbolp x)  (to-package-name (symbol-package x)))
+	((keywordp x) (symbol-name x))
 	((stringp x)  x)))
 
 (defun same-package (a b)

@@ -1,6 +1,6 @@
 
 (defpackage mk-website
-  (:use :common-lisp :iterate :generic :lml2)
+  (:use :common-lisp :denest :generic :lml2)
   (:export with-bars mk-website)
   (:documentation "Website making tools for lml2"))
 
@@ -48,8 +48,9 @@
        (eval `(html-file-page (,one-page)
 		,one-page-header
 		(:body
-		 ,(wbars (iter (for p in page-list)
-			       (appending (strip-head p))))))))
+		 ,(wbars (denest (collecting ())
+				 (dolist (p page-list)
+				   (appending (strip-head p)))))))))
       (t
        (dolist (p page-list)
 	 (eval `(html-file-page (,(car p))

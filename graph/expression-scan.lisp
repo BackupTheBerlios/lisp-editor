@@ -5,14 +5,14 @@
   #+lispworks (:import-from #:lispworks #:compiler-let)
   (:use :cl :generic :expression-hook :package-stuff)
   (:export add-scanner-fun add-scanner
-	   *additional-scan* access-result
-	   scanner-state scan-expression-hook
-	   track-fun track-var
-	   type name args init dep var-dep
-	   scan-single-expression)
+	   *additional-scan* access-result *scan-result*
+	   scan-expression-hook
+	   scan-single-expression scan-file scan-loadfile
+	 ;Some of the scanners that come with it
+	   track-fun track-var ;Functions and macros, variables.
+	   type name args init dep var-dep other)
   (:documentation 
-   "Can create and use expression-hook (macroexpand-dammit from John\
- Fremlin modified) to obtain information about code.
+   "Can create and use expression-hook to obtain information about code.
 Any s-expression can be tracked."))
 
 (in-package :expression-scan)
@@ -60,36 +60,43 @@ Any s-expression can be tracked."))
   (dolist (fn *additional-scan*)
     (funcall fn expr))
   (if-use
-   (when (and expr (listp expr))
+   (when (and expr (listp expr)) ;See if any trackers for it.
      (when-let fn (gethash (car expr) *fun-scan*)
-       (funcall fn expr)))
-   (expand-hook expr)))
+       (funcall fn expr))) ;Trackers need to expand-hook, (otherwise stops.)
+   (expand-hook expr))) ;Otherwise expand-hook itself.
 
 ;;Scanning stuff.
 (defun scan-file (stream)
   "Scans a file as source code in order to document it."
-  (let ((*expression-hook* #'scan-expression-hook)
-	(*expression-hook-state* (make-instance 'scanner-state)))
-    (do ((read nil (read stream nil 'end-of-file)))
-	((eql read 'end-of-file) nil)
-      (eval(hook-expand read)))))
+  (if (or (stringp stream) (pathnamep stream))
+    (with-open-file (stream stream)
+      (scan-file stream))
+    (let ((*expression-hook* #'scan-expression-hook))
+      (do ((read nil (read stream nil 'end-of-file)))
+	  ((eql read 'end-of-file) nil)
+	(expand read)))))
 
 (defun scan-loadfile (stream)
   "Scans a file with a bunch of loads in it."
-  (do ((read nil (read stream nil 'end-of-file)))
-      ((eql read 'end-of-file) nil)
-    (when (eql (car read) 'load)
-      (scan-file (cadr read)))))
+  (if (or (stringp stream) (pathnamep stream))
+    (with-open-file (stream stream)
+      (scan-loadfile stream))
+    (do ((read nil (read stream nil 'end-of-file)))
+	((eql read 'end-of-file) nil)
+      (when (eql (car read) 'load)
+	(scan-file (cadr read))))))
 
 (defun scan-single-expression (expr)
   (let ((*expression-hook* #'scan-expression-hook)
 	(*in-fun* nil))
-    (eval (hook-expand expr))))
+    (expand expr)))
+
+(defclass with-other () ((other :initarg :other :initform nil)))
 
 ;;Data tracker for functions and macros.
 ;; Note the convention is to not track data already readily available, 
-;; like documentation strings.rc[
-(defclass track-fun ()
+;; like documentation strings.rc
+(defclass track-fun (with-other)
   ((type :initarg :type :type symbol)
    (name :initarg :name :type symbol)
    (args :initarg :args :type list)
@@ -135,7 +142,7 @@ Any s-expression can be tracked."))
   (push #'additional-scanner-fun *additional-scan*))
 
 ;;Data tracker for variables.
-(defclass track-var ()
+(defclass track-var (with-other)
   ((type :initarg :type :type symbol)
    (name :initarg :name :type symbol)
    (init :initarg :init))
