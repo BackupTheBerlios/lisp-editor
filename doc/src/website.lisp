@@ -126,7 +126,7 @@ TODO is automatic linking; must keep working regardless of single page or\
  everything more uniformly.(defun, defmacro no longer being special.) That\
  way, autodoc(also in lisp-ed project), can also document macros made by\
  the user, simply by providing a scanner and a documenter for the macro."
-	 ))))
+	))))
 
 (let ((logo
        '((:a :href "http://developer.berlios.de")
@@ -135,9 +135,9 @@ TODO is automatic linking; must keep working regardless of single page or\
   (mk-website
    :contents
    `((:ul
-      (:li (:p ,(idem-href "Lisp-ed"))
+      (:li (:p ,(idem-href "Lisp-ed")))
+      (:li ,(idem-href "Code-scan")
 	   (:p ((:a :href "code-scan-workings.html") "And how it works.")))
-      (:li ,(idem-href "Code-scan"))
       (:li ,(idem-href "Autodoc"))
       (:li ,(idem-href "Mk-website"))
       (:li

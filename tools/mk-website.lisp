@@ -1,7 +1,8 @@
 
 (defpackage mk-website
   (:use :common-lisp :denest :generic :lml2)
-  (:export with-bars mk-website)
+  (:export with-bars mk-website
+	   mk-website-from-code mk-website-from-file)
   (:documentation "Website making tools for lml2"))
 
 (in-package :mk-website)
@@ -68,3 +69,11 @@ Make contents file yourself, you can put it by putting regular lml2 code\
 			       (eql (caadr p) :head))
 			     (list (cadr p)))
 		     ,(wbars (strip-head p)))))))))))
+
+(defun mk-website-from-file (file)
+  "Makes a website from a file format. See mk-website-from-code for more"
+  (mk-website-from-code
+   (with-open-file (stream file)
+     (do ((read (read stream nil nil) (read stream nil nil))
+	  (code (cons read code) (cons read code)))
+	 ((null read) (reverse code))))))
