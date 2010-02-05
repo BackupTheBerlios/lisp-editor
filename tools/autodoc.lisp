@@ -1,4 +1,4 @@
-(cl:in-package :cl)
+(cl:in-package :cl-user)
 
 ;TODO it is a little messy. Probably better make the autodoc separate 
 ; functions?

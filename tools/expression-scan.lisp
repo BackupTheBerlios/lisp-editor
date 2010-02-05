@@ -4,16 +4,17 @@
 ;TODO how is it printing?!?!?
 (defpackage :expression-scan
   #+lispworks (:import-from #:lispworks #:compiler-let)
-  (:use :cl :generic :plist-slot :package-stuff :expression-hook)
+  (:use :cl :generic :package-stuff :expression-hook)
   (:nicknames :expr-scan)
-  (:export add-scanner-fun def-scanner
+  (:export add-scanner-fun def-scanner ;TODO are all these needed?
 	   fun-scanner
 	   *additional-scan* access-result *scan-result*
 	   scan-expression-hook
 	   scan-expr scan-file scan-loadfile scan-system
 	 ;Some of the scanners that come with it
 	   track-fun track-var ;Functions and macros, variables.
-	   type name args init fun-dep var-dep flet-dep var-dep other)
+	   type name args init fun-dep var-dep flet-dep var-dep other
+	   track-generic)
   (:documentation 
    "Can create and use expression-hook to obtain information about code.
 Any s-expression can be tracked. (So macros and functions can be tracked."))
@@ -27,6 +28,8 @@ Any s-expression can be tracked. (So macros and functions can be tracked."))
 (defparameter *additional-scan* (list)
   "List of functions for scanning besides every expression.\
  (Rather then fun-scan, elements of which only scan specific macros.")
+
+(defgeneric name (obj) (:documentation "Gets name of object."))
 
 (defun add-scanner-fun (for-name scan-function)
   "Adds a scanner for a macro/function."
@@ -103,20 +106,36 @@ Any s-expression can be tracked. (So macros and functions can be tracked."))
 	(*in-funs* nil))
     (expand expr)))
 
+(defclass track-form ()
+  ((form :initarg :form :type list)))
+
+(defmethod name ((tf track-form))
+  (cadr (slot-value tf 'form)))
+
+(defun form-scanner (expr &key (class 'track-form))
+  (setf (access-result (car expr) (cadr expr))
+	(make-instance class :form expr))
+  (expand-hook expr))
+
+(defclass track-package (track-form)
+  () (:documentation "Tracks defpackage."))
+
+(add-scanner-fun 'defpackage (curry #'form-scanner :class 'track-package))
+
 ;;Data tracker for functions and macros.
 ;; Note the convention is to not track data already readily available, 
 ;; like documentation strings.rc
-(defclass track-fun (plist-slot)
+(defclass track-fun ()
   ((type :initarg :type :type symbol)
-   (name :initarg :name :type symbol)
+   (name :initarg :name :type symbol :reader name)
    (args :initarg :args :type list)
    
    (in-funs :initarg :in-funs :type list
      :documentation "Which functions/macros created it.")
    (fun-dep :initarg :fun-dep :initform nil :type list
 	    :documentation "What functions/macros it depends on.")
-   (flet-dep :initarg :flet-dep :initform nil :type list
-     :documentation "Flet/macrolets it depends on.")
+;   (flet-dep :initarg :flet-dep :initform nil :type list
+;     :documentation "Flet/macrolets it depends on.")
    (var-dep :initarg :var-dep :initform nil :type list
      :documentation "Assoc list with variables it depends on, and origin."))
   (:documentation
@@ -140,8 +159,11 @@ Any s-expression can be tracked. (So macros and functions can be tracked."))
 	 "Scans for used variables/functions to find "
 	 (when (or (not expr) (null *in-funs*))
 	   (return-from additional-scanner-fun))
-	 (when-let tracker (if-use (access-result 'defmacro (car *in-funs*))
-				   (access-result 'defun (car *in-funs*)))
+	 (when-let tracker
+	     (if-use (access-result 'defmacro (car *in-funs*))
+		     (access-result 'defun (car *in-funs*))
+		     (access-result 'defvar (car *in-funs*))
+		     (access-result 'defparameter (car *in-funs*)))
 	   (with-slots (var-dep fun-dep) tracker
 	     (cond
 	       ((symbolp expr) ;Register var/parameter useages. 
@@ -158,27 +180,61 @@ Any s-expression can be tracked. (So macros and functions can be tracked."))
 		  (push (car expr) fun-dep))))))))
   (push #'additional-scanner-fun *additional-scan*))
 
+(defclass track-generic (track-form)
+  ((methods :initarg :methods :type list))
+  (:documentation "Tracks method generic declarations."))
+
+(add-scanner-fun 'defgeneric
+  (lambda (expr)
+    (destructuring-bind (type name &rest rest) expr
+      (declare (ignore rest))
+    ;Make it, if methods already existed, incorporate.
+      (setf (access-result type name)
+	    (make-instance 'track-generic :form expr
+	      :methods (when-let prev (access-result type name)
+			 (slot-value prev 'methods)))))
+    (expand-hook expr)))
+
+(add-scanner-fun 'method
+  (lambda (expr)
+    (prog1 (fun-scanner expr)
+      (destructuring-bind
+	    (type name (&rest args) &option dstr &body body) expr
+	(declare (ignore body))
+	(setf (access-result type name)
+	      (make-instance 'track-form :form `(,type ,name ,args ,dstr)))
+	(let((gen (if-use ;Automatically makes a generic if not scanned.
+		   (access-result 'defgeneric name)
+		   (setf (access-result 'defgeneric name)
+			 (make-instance 'track-generic :name name
+			   :args (mapcar #'delist args))))))
+	  ;Push the method.
+	  (push (access-result type name) (slot-value gen 'methods)))))))
+
 ;;Data tracker for variables.
-(defclass track-var (plist-slot)
-  ((type :initarg :type :type symbol)
-   (name :initarg :name :type symbol)
-   (init :initarg :init))
-  (:documentation "Structure containing information on macros."))
+(defclass track-var (track-form)
+  ((fun-dep :initform nil :type list)
+   (var-dep :initform nil :type list))
+  (:documentation "Structure containing information on macros.
+fun-dep and var-dep for initform!"))
 
 (flet ((var-scanner (expr)
 	 "Function to scan variable creation by defvar/defparameter."
-	 (destructuring-bind (type name &optional init doc-str) expr
-	   (declare (ignore doc-str))
+	 (destructuring-bind (type name &rest rest) expr
+	   (declare (ignore rest))
 	   (setf (access-result type name)
-		 (make-instance 'track-var
-				:type type :name name :init init)))
+		 (make-instance 'track-var :form expr)))
 	 (expand-hook expr)))
   (add-scanner-fun 'defvar #'var-scanner)
   (add-scanner-fun 'defparameter #'var-scanner))
 
-;;TODO defclass, defstruct. (And then also for autodoc.)
+;TODO better class scanning?
+(add-scanner-fun 'defclass #'form-scanner)
+(add-scanner-fun 'defstruct #'form-scanner)
 
-;;Scanning systems.
+(defvar *system-packages* nil)
+
+;;Scanning asdf systems.
 (when (find-package :asdf)
   
   (defun scan-system
@@ -227,10 +283,12 @@ Any s-expression can be tracked. (So macros and functions can be tracked."))
 		((eql read 'end-of-file) nil)
 	      (expand read)))))
     ;Recurse if asked, return packages.
-      (cons packages ;You can tell different levels apart.
-	    (mapcan (curry #'scan-system
-		      :load-hook load-hook :recurse-cnt (- recurse-cnt 1))
-		    recurse-to))))
+      (setf (getf *system-packages* (intern (asdf:component-name sys)))
+	    (cons packages ;You can tell different levels apart.
+		  (mapcan
+		   (curry #'scan-system
+		       :load-hook load-hook :recurse-cnt (- recurse-cnt 1))
+		   recurse-to)))))
   
   ) ;\(when (find-package :asdf)
 

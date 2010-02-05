@@ -32,7 +32,8 @@ so they're applicable to multiple implementations."))
   "Macro to shorten up make-instance."
   `(make-instance ',type ,@args))
 
-(def-changable-var *lang* :init nil :doc "Current language to convert too.")
+(def-changable-var *lang* :init nil
+		   :doc "Current language to convert too.")
 
 (def-changable-var *cur-page* :init nil)
 (def-changable-var *pages* :init nil)
@@ -43,34 +44,27 @@ so they're applicable to multiple implementations."))
 
 (defmethod i-prep (lang thing)
   thing)
+(defmethod i-prep (lang (num number))
+  (format nil "~D" num))
 
 (defun prep (thing)
   (i-prep *lang* thing))
 
 ;;-------------------List-like objects--------------------------------------
 
-(defgeneric i-glist (lang sep things)
+(defgeneric i-glist (lang way things)
   (:documentation "See glist."))
 
-(defun glist (sep &rest things)
+(defun glist (way &rest things)
   "Lists of various forms.
 sep:
  :p    Paragraph-like separations
  :list Point-by-point list, class point-list allows for more specification.
  If you made a custom one, and none applies, it reverts to :p"
-  (i-glist *lang* sep (mapcar #'prep things)))
+  (i-glist *lang* way (mapcar #'prep things)))
 
-;;-------------------Add actions to objects---------------------------------
-
-(defgeneric i-action (lang action object)
-  (:documentation "Adds posibility of action to object."))
-
-(defun action (action object)
-  "Adds action to an object. 
-Like following a link, as link does."
-  (i-action *lang* (prep action) (prep object)))
-
-(rest-version action action object)
+(defmethod i-glist (lang way (things null))
+  (lambda ()))
 
 ;;-------------------Add anotations to objects------------------------------
 
@@ -81,9 +75,21 @@ Like following a link, as link does."
   "Adds an annotation to an object.
 For instance, as link-pos makes as in gil-suggest, but meant to be more\
  general."
-  (i-note *lang* (prep note) (glist :series objects)))
+  (i-note *lang* note (apply #'glist (cons :series objects))))
 
 (rest-version note note object)
+
+;;-------------------Add actions to objects---------------------------------
+
+(defgeneric i-action (lang action object)
+  (:documentation "Adds posibility of action to object."))
+
+(defun action (action &rest objects)
+  "Adds action to an object. 
+Like following a link, as link does."
+  (i-action *lang* action (apply #'glist (cons :series objects))))
+
+(rest-version action action object)
 
 ;;-------------------Sections and headers-----------------------------------
 
@@ -92,7 +98,7 @@ For instance, as link-pos makes as in gil-suggest, but meant to be more\
 
 (defun header (level object)
   "A title of a paragraph/other."
-  (i-header *lang* (prep level) (prep object)))
+  (i-header *lang* level (prep object)))
 
 (rest-version header level object)
 
@@ -103,15 +109,14 @@ For instance, as link-pos makes as in gil-suggest, but meant to be more\
 ;Default section behavior.
 (defmethod i-section (lang level name object (paragraphs list))
   (declare (ignore name))
-  (i-glist lang :p (cons (header (prep level) (prep object))
+  (i-glist lang :p (cons (header level (prep object))
 			 (mapcar #'prep paragraphs))))
 
 (defun section (level name object &rest paragraphs)
-  (i-section *lang* (prep level) name (prep object)
+  (i-section *lang* level name (prep object)
 	     (mapcar #'prep paragraphs)))
 
 ;;-----------------TODO spatial distribution.-------------------------------
-
 
 ;;Some declaims.
 (declaim (inline glist action note))

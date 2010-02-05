@@ -24,7 +24,9 @@ lalala")
 with two lines"))
       (p (b "bold stuff") "not bold. ")
       (p (b "Bold again")". " "Mention of cookies!")
-      (make-instance 'file-image :filename "http://www.w3schools.com/images/pulpit.jpg")))
+      (make-instance 'file-image :filename "http://www.w3schools.com/images/pulpit.jpg")
+      (section 0 "ofile" "Section possibly in other file"
+	       "Text." " More text.")))
     (when (eql (type-of output) 'SB-IMPL::STRING-OUTPUT-STREAM)
       (get-output-stream-string output))))
 
@@ -34,12 +36,7 @@ with two lines"))
 		 :if-does-not-exist :create :if-exists :supersede)
   (test :lang :html :output str))
 
+;TODO fix to match changes.
 (with-open-file (str "first.txt" :direction :output
 		 :if-does-not-exist :create :if-exists :supersede)
   (test :lang :txt :output str))
-
-(setq *tab-step* 4)
-
-(print (lambda () 'a))
-
-(untrace call)

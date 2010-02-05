@@ -6,3 +6,5 @@ ln -s $PWD/tools/expression-hook.asd ~/.sbcl/systems/
 ln -s $PWD/tools/expression-scan.asd ~/.sbcl/systems/
 
 ln -s $PWD/tools/autodoc.asd ~/.sbcl/systems/
+
+ln -s $PWD/gil/gil.asd ~/.sbcl/systems/

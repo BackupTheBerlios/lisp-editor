@@ -4,7 +4,9 @@
 (defpackage gil-txt
   (:use :common-lisp :generic :gil :gil-share)
   (:documentation "Text output of General Interface Library/Language.
-Goes by symbol :txt"))
+Goes by symbol :txt
+
+TODO slightly excessive newlining."))
 
 (in-package :gil-txt)
 
@@ -16,13 +18,15 @@ Goes by symbol :txt"))
 (defun is-break (ch)
   (not (alpha-char-p ch)))
 
-(defun de-whitespace (text)
+(defun strip-whitespace (text)
   (do ((i 0 (+ i 1))
        (j 0 j))
-      ((< i (length text))
+      ((>= i (length text))
        (subseq text 0 j))
+   ;Write from i to j unless previous was whitespace.
     (unless (and (is-whitespace (aref text i))
-		 (is-whitespace (aref text j)))
+		 (or (= i 0)
+		     (is-whitespace (aref text (- i 1)))))
       (setf (aref text j) (aref text i))
       (setf- + j 1))))
 
@@ -33,25 +37,21 @@ Goes by symbol :txt"))
 (defun write-tabbed 
     (text &key (line-len *line-len*) 
                (tab-level (* *tab-depth* *tab-step*))
-               not-first)
+               not-first (txt (strip-whitespace text)))
   (unless (or not-first (> *cur-char-depth* 0))
     (n-spaces tab-level)) ;Add tabs.
   (do ((f 0 f) ;start
        (i *cur-char-depth* (+ i 1)) ;current
-       (s 0 (if (is-break (aref text i)) i s))) ;split
-      ((>= i (length text)) (write-string (subseq text f i)))
-    (when (cond
-	    ((char= #\Newline (aref text i)) ;Accept newlines.
-	     (write-string (subseq text f i))
-	     (setq f (+ i 1)  s (+ i 1)))
-	    ((> (- i f) line-len) ;Over newline.
-	     (cond
-	       ((> (- s f) (* *acceptable-split-ratio* line-len))
-		(write-string (subseq text f s))
-		(setq f s  i s))
-	       (t ;No good cut, make a bad one.
-		(write-string (subseq text f i))
-		(setq s i  f i)))))
+       (s 0 (if (is-break (aref txt i)) i s))) ;split
+      ((>= i (length txt)) (write-string (subseq txt f i)))
+    (when (when (> (- i f) line-len) ;Over newline.
+	    (cond
+	      ((> (- s f) (* *acceptable-split-ratio* line-len))
+	       (write-string (subseq txt f s))
+	       (setq f s  i s))
+	      (t ;No good cut, make a bad one.
+	       (write-string (subseq txt f i))
+	       (setq s i  f i))))
       (write-char #\Newline)
       (n-spaces tab-level)))) ;Add tabs.
 
@@ -136,6 +136,9 @@ Goes by symbol :txt"))
   (call object)
   (wformat "_"))
 
+;;-------------------Comments----------------------------------------------
+(def-gil-method* i-note :comment (object))
+
 ;;-------------------Headers------------------------------------------------
 
 (def-gil-method* i-header 1 (object)
@@ -145,7 +148,7 @@ Goes by symbol :txt"))
   (wformat "~%--------------------------~%"))
 
 (def-gil-method* i-header 2 (object)
-  (wformat "==== ")
+  (wformat "~%==== ")
   (let ((*cur-char-depth* 5))
     (call object))
   (wformat " ====~%"))

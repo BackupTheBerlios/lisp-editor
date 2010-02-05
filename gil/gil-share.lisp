@@ -12,11 +12,13 @@
 	   point-list alt-point-list
 	   dot-list dot-list-style
 	   numbered-list *long-number*
-	   b i u link link-name link-page
+	   b i u url-link
 	   *link-page-style* link link-pos
-	   *cur-page* *pages*
+	   *cur-page* *pages* page
+	   comment
 	   wformat call make-gil-definer
-	   base-image file-image title file-name)
+	   base-image file-image title file-name
+	   mk-split)
   (:documentation "Highly suggested variables, classes and keywords for\
  GIL. Purpose is to standardize these over implementations.
 NOTE early stage."))
@@ -35,16 +37,13 @@ NOTE early stage."))
 (def-changable-var *list-tab-cnt* :init 1
   :doc "Number of tabs listers make.")
 
-(defun r-glist (sep paragraph)
-  (apply #'glist (cons sep paragraph)))
-
 ;;Convenience functions.
 ;;---Lists
 (defun p (&rest paragraph)
   "List of paragraphs. (glist with :p)"
-  (r-glist :p paragraph))
+  (apply #'glist (cons :p paragraph)))
 
-(defclass paragraph ()
+(defclass paragraph () ;TODO even used?
   ((tabs :initarg :tabs :type fixnum :initform 0
 	 :documentation "Number of tabs all over")
    (jump :initarg :jump :type fixnum :initform 0
@@ -53,10 +52,10 @@ NOTE early stage."))
 
 (defun point-list (&rest paragraphs)
   "List of points."
-  (r-glist :list paragraphs))
+  (apply #'glist (cons :list paragraphs)))
 (defun alt-point-list (&rest paragraphs)
   "List of alternative style points."
-  (r-glist :alt-list paragraphs))
+  (apply #'glist (cons :alt-list paragraphs)))
 
 (defclass dot-list ()
   ((style :initarg :style :reader dot-list-style))
@@ -67,41 +66,82 @@ NOTE early stage."))
 
 (defun numbered-list (&rest paragraphs)
   "Numbered list."
-  (r-glist :numbered-list paragraphs))
+  (apply #'glist (cons :numbered-list paragraphs)))
 
 ;;---Notes
 (defun b (&rest paragraph)
   "Bold text."
-  (i-note *lang* :bold (r-glist :series paragraph)))
-
+  (apply #'note (cons :bold paragraph)))
 (defun i (&rest paragraph)
   "Italic text."
-  (i-note *lang* :italic (r-glist :series paragraph)))
+  (apply #'note (cons :italic paragraph)))
 (defun u (&rest paragraph)
   "Underlined text."
-  (i-note *lang* :underlined (r-glist :series paragraph)))
+  (apply #'note (cons :underlined paragraph)))
 
-(defclass link ()
-  ((page :initarg :page :accessor link-page :type symbol)
-   (name :initarg :name :accessor link-name :type symbol))
-  (:documentation "Link to a position."))
+;;---Pages.
+(defclass page ()
+  ((name :initarg :name :accessor name :initform nil :type symbol)
+   (link-ends :initarg :link-ends :initform nil :type list)))
 
-;;---Links as action.
 (def-changable-var *pages* :init nil :doc "Current existing pages.")
+
+(defun find-page (page-name)
+  "Find a page."
+  (declare (type symbol page-name))
+  (find-if (lambda (p) (eql (slot-value p 'name) page-name)) *pages*))
+(defun get-page (page-name)
+  (declare (type (or symbol string) page-name))
+  (let ((page-name (if (symbolp page-name) page-name (intern page-name))))
+    (if-use (find-page page-name)
+	    (car (push (mk page :name page-name) *pages*)))))
+
+(defun find-link (link-name)
+  "Finds the page the link belongs to."
+  (declare (type symbol link-name))
+  (find-if (lambda (p)
+	     (find link-name (slot-value p 'link-ends)))
+	   *pages*))
+
 (def-changable-var *cur-page* :init nil :doc "Current page.")
 (def-changable-var *link-page-style* :init nil :doc "Way the link is\
  followed with regard to page, may try to open new tab or replace old,
  etcetera..")
 
-(defun link (object link-name &optional (page-name *cur-page*))
+;;---Links as action.
+(defclass link ()
+  ((page :initarg :page :accessor page :type (or null page))
+   (name :initarg :name :accessor name :type symbol))
+  (:documentation "Link to a position."))
+
+(defun intern* (x)
+  (if (stringp x) (intern x) x))
+
+(defun link (object link-name &optional page)
   "Adds action to link to an object."
-  (pushnew page-name *pages*)
-  (action (mk link :page page-name :name link-name) object))
+  (let*((link-name (intern* link-name))
+	(page (typecase page
+		(null   (find-link link-name))
+		(string (get-page page))
+		(symbol (get-page page))
+		(t      page))))
+    (when page
+      (pushnew link-name (slot-value page 'link-ends)))
+    (action (mk link :page page :name link-name) object)))
+
+(defclass url-link ()
+  ((name :initform "" :initarg :name :type string :reader name)))
+
+(defun url-link (name object)
+  "Link to the outside with url. Avoid linking inside via url!"
+  (action (mk url-link :name name) object))
 
 ;;And link-positions; annotations that links can go there by some name.
 (defun link-pos (object link-name)
   "Adds a notation that links can go here."
-  (note (mk link :page *cur-page* :name link-name) object))
+  (let ((link-name (intern* link-name)))
+    (apply #'note (list (mk link :name link-name)
+			object))))
 
 ;;Some declaims.
 (declaim (inline p b i u link link-pos))
@@ -129,15 +169,16 @@ NOTE early stage."))
   "Defines a method with the language argument filled for you. Meant for use
  internal to gil-html only."
   (with-gensyms (sep)
-    `(defmethod ,name ((lang (eql ,,lang-name))
-		       ,(cond
-			 ((or (numberp sep-type) (keywordp sep-type))
-			  `(,sep (eql ,sep-type)))
-			 ((and sep-type (symbolp sep-type))
-			  sep-type)
-			 ((listp sep-type)
-			  sep-type))
-		       ,@args)
+    `(defmethod ,name
+	 ((lang (eql ,,lang-name))
+	  ,(cond
+	    ((or (numberp sep-type) (keywordp sep-type))
+	     `(,sep (eql ,sep-type)))
+	    ((and sep-type (symbolp sep-type))
+	     sep-type)
+	    ((listp sep-type)
+	     sep-type))
+	  ,@args)
        ,@,strip-body)))
      (defmacro ,lambda-mac (name sep-type (&rest args) &body body)
        `(,',mac-name ,name ,sep-type (,@args) ,@(when ,has-docstr (car body))
@@ -152,3 +193,27 @@ NOTE early stage."))
 (defclass file-image (base-image)
   ((file-name :initarg :filename :accessor file-name))
   (:documentation "Images named by file."))
+
+(defun comment (&rest code)
+  (apply #'note (cons :comment code)))
+
+;;Separation in parts.
+
+(defclass split ()
+  ((spacing :initarg :spacing :initform nil :type list)
+   (way :initarg :way
+	:initform :relative :type (or (eql :relative)
+				      (eql :absolute)))
+   (dir :initarg :dir :initform :v :type (or (eql :v) (eql :h)))))
+
+(defun mk-split (splits &key (dir :v) (way :relative))
+  "Makes a split screen for input into glist."
+  (make-instance 'split :spacing splits :dir dir :way way))
+
+(defmethod i-glist ((lang (eql :check)) (split split) (frames list))
+  (with-slots (spacing way) split
+    (unless (= (length frames) (+ (length spacing)
+				  (if (eql gils::way :absolute) 1 0)))
+      (error "There must be a start of each frame~s"
+	     (if (eql gils::way :absolute)
+	       " and one for the ending when absolute." ".")))))

@@ -141,8 +141,8 @@ Used for gathering information on code autodoc via expression-scan."))
   `(,load-time-value ,(expand form) ,(expand read-only-p)))
 
 (defun base-fun (name args body &key flat-arg)
-  "Base treatment of function.
-TODO better argument treatment, long and bad, currently."
+  "Base treatment of function."
+  (declare (ignore flat-arg))
   (let ((*in-funs* (cons name *in-funs*)))
     `((,@(denest* 
 	  (let state)
@@ -179,10 +179,23 @@ TODO better argument treatment, long and bad, currently."
 (def-base-macro defmacro (defmacro name (&rest args) &body body)
   `(,defmacro ,name ,@(base-fun name args body)))
 
+(def-base-macro defvar (defvar name &optional init doc)
+  `(,defvar ,name ,@(when init
+		      (list (let ((*in-funs* (cons *in-funs* name)))
+			      (expand init))))
+     ,@(when doc (list doc))))
+(def-base-macro parameter (defvar name &optional init doc)
+  `(,defvar ,name ,@(when init
+		      (list (let ((*in-funs* (cons *in-funs* name)))
+			      (expand init))))
+     ,@(when doc (list doc))))
+
 (defun expand-funs (funs &key flat-arg)
   "Expands flet/macrolet input and returns the names in the second value."
-  (denest (return-accumulate* ((collecting nil cr col-result)
-			       (collecting nil cn col-names)))
+  (declare (ignorable flat-arg))
+  (denest (collecting (nil cr col-result))
+	  (collecting (nil cn col-names))
+	  (:return (values cr cn))
 	  (dolist (fun funs)
 	    (destructuring-bind (name (&rest args) &body body) fun
 	      (col-result `(,name ,@(base-fun name args body :flat-arg flat-arg)))
