@@ -194,8 +194,8 @@ TODO improve the messyness of the file, split out some stuff."))
 (defmacro wformat (str &rest args)
   "Format writer."
   `(progn
-     (when (= *cur-char-depth* 0)
-       (dotimes (k *tab-depth*)
+     (when (and (= *cur-char-depth* 0) *attempt-readable*)
+       (dotimes (k *indent-depth*)
 	 (write-char #\Space)))
      (format *standard-output* ,str ,@args)))
 

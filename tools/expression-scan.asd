@@ -16,6 +16,5 @@
   "Can create and use expression-hook to obtain information about code.
 Any s-expression can be tracked. (So macros and functions can be tracked."
   :serial t
-  :components ((:file "plist-slot") ;Don't really like relying on it.
-	       (:file "expression-scan"))
+  :components ((:file "expression-scan"))
   :depends-on (:generic :expression-hook))

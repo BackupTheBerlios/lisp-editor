@@ -77,19 +77,28 @@ entered, but it is just good habit to fill those.\))
   depending on the output type; plaintext output, for instance, isn't 
   capable of very much\)
   
-  (p There are two basic methods, (b i-prep) and (b i-glist)
+  (p There are two basic methods, (b (code i-call)) and (b (code i-glist))
      Both have the output language as first argument.)
     
-  (section 3 $"i-prep" #(i-prep \(lang object\))
-    Returns object prepared for use, nothing else.)
-
   (section 3 $"i-glist" #(i-glist \(lang way list\))
-    Treats listed objects as way prescribes.
-    This is GILs equivalent to tags, except that the tags are replaced by 
-    general objects.)
+    Makes a interface/markup as close as possible in the output language as
+    described in the 'way'.
+    
+    (p This is GILs equivalent to tags, except that the tags are replaced by 
+    general objects.))
+
+  (section 3 $"i-call" #(i-prep \(lang object\))
+    Makes interface/markup as close as possible to the language.
+    
+    (p It is to funcall functions directly.))
   
-  You usually don't use these, directly, there are functions that compose 
-  these for you.
+  You don't use these directly, are functions that compose 
+  these for you. (code glist) and (code glist-list) do this, they also 
+  wrap in a lambda.
+  This way, the resulting function is independent on the (code *lang*)
+  special 
+  variable. Basically, it is an object to describe the function in the raw,
+  to be exported the (code *lang*) when it is (code call)ed with it.
   
   (section 2 $"objects" #(Objects)
     So then the important question is what sort of objects. 
@@ -141,7 +150,8 @@ entered, but it is just good habit to fill those.\))
      a symbol, 
      and always turning numbers into numbers. Otherwise it is always a 
      string.
-     '\\' escapes for a symbol, \$ reads a lisp expression as usual, 
+     '\\' escapes for a single charactere,
+      \$ reads a lisp expression as usual, 
      and #() 
      makes a statement a unit onto itself; if you want \"a b c d\" to be 
      read as \"a b\" \"c d\", you'd do \"#(a b) #(c d)\".
@@ -158,7 +168,7 @@ entered, but it is just good habit to fill those.\))
      help you write.
       \(Although perhaps i will make other types of tools.\)))
 
-(section 2 $"GIL-fun-use" #(Functions from use-perspective)
+(section 2 $"GIL-fun-use" #(Functions from user-perspective)
     
   Firstly, (b don't) use any of the 'i-...' functions, in data-like code
   these are meant, and if you do, always make the second argument 
@@ -167,7 +177,9 @@ entered, but it is just good habit to fill those.\))
 (url-link $"http://www.gigamonkeys.com/book/variables.html#dynamic-aka-special-variables"
 	   special variable).\)
 
-  TODO further docs.)
+  (p You can define your own functions to suit your needs.))
+  
+  TODO further docs.
 
 (comment TODO (section 2 $"GIL-use-examples" #(Examples)
   )
@@ -175,6 +187,6 @@ entered, but it is just good habit to fill those.\))
   
 (section 1 $"GIL-output" #(GIL output languages)
   Currently GIL has only html output. Used to have text and latex output, 
-  but broke them making changed.\(To be fixed.\)
+  but broke them making changes.\(To be fixed.\)
   
   (p Neat would be to have GUI toolkit 'outputs', like via cl-gtk.))

@@ -18,7 +18,7 @@
 (in-package :gil-user)
 
 (defun handle-page-contents
-    (&key 
+    (contents &key 
      (split (mk-split (list 0.2 0.8)))
      (enlist nil)
      (before (lambda())) (after (lambda()))
@@ -31,7 +31,7 @@
     (let ((contents-side
 	   (glist :series
 		  before 
-		  (gil-info:use-contents 
+		  (gil-info:use-contents contents
 		   :number number :number-upto number-upto :number number
 		   :include-upto include-upto :via via
 		   :replace-names replace-names)

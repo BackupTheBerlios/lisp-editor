@@ -113,11 +113,11 @@ Page ~a changed to page ~a." link-sym
 	  (rank (subseq (cdr list) i) :compare compare))
     (list (cons (car list) (rank (cdr list) :compare compare)))))
   
-(defun organized-contents ()
+(defun organized-contents (contents)
   "Organizes contents."
   (unless *contents*
     (warn "Trying to use contents when no elements."))
-  (rank *contents* :compare (lambda (a b)
+  (rank contents :compare (lambda (a b)
 			      (<= (car a) (car b)))))
 
 ;;Use data to make contents page.
@@ -184,13 +184,13 @@ the elements must be: (level link-name object &optional first-obj)"
 	(make-instance 'url-entry :url url)))
 
 (defun use-contents
-    (&key number (number-upto (if number 4 0)) (include-upto 3)
+    (contents &key number (number-upto (if number 4 0)) (include-upto 3)
      (via :header) replace-names
      (index (list 0)))
   "Reads the (gil) files, organizing these hierarchically, in order to\
  produce a contents list.
 Note that for via other than :header, it currently makes a bit of a mess."
   (unless (eql *lang* :info)
-    (ranked-list (organized-contents) :include-upto include-upto
+    (ranked-list (organized-contents contents) :include-upto include-upto
 		 :number number :number-upto number-upto :via via
 		 :replace-names replace-names :index index)))

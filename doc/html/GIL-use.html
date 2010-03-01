@@ -1,6 +1,6 @@
 <head><title>GIL from user perspective</title><link rel="stylesheet" type="text/css" href="default.css"
  />
-</head><table><tr><td colspan=2><span style="font-size:250%;">Lisp-editor</span></td></tr><tr><td valign="top"><h3><a href="Intro.html#Intro">Intro</a></h3><h3><a href="GIL.html#GIL">General Interface Library/Language (Explanation)</a></h3><h3><a href="GIL-use.html#GIL-use">GIL from user perspective</a></h3><h3><a href="GIL-output.html#GIL-output">GIL output languages</a></h3><h3><a href="DEFPACKAGE GENERIC.html#DEFPACKAGE GENERIC">Package: Generic</a></h3><h3><a href="DEFPACKAGE DENEST.html#DEFPACKAGE DENEST">Package: Denest</a></h3><h3><a href="DEFPACKAGE PACKAGE-STUFF.html#DEFPACKAGE PACKAGE-STUFF">Package: Package-stuff</a></h3><h3><a href="DEFPACKAGE EXPRESSION-HOOK.html#DEFPACKAGE EXPRESSION-HOOK">Package: Expression-hook</a></h3><h3><a href="DEFPACKAGE EXPRESSION-SCAN.html#DEFPACKAGE EXPRESSION-SCAN">Package: Expression-scan</a></h3><h3><a href="DEFPACKAGE AUTODOC-GIL.html#DEFPACKAGE AUTODOC-GIL">Package: Autodoc-gil</a></h3><h3><a href="DEFPACKAGE GIL.html#DEFPACKAGE GIL">Package: Gil</a></h3><h3><a href="DEFPACKAGE GIL-SHARE.html#DEFPACKAGE GIL-SHARE">Package: Gil-share</a></h3><h3><a href="DEFPACKAGE GIL-STYLE.html#DEFPACKAGE GIL-STYLE">Package: Gil-style</a></h3><h3><a href="DEFPACKAGE GIL-INFO.html#DEFPACKAGE GIL-INFO">Package: Gil-info</a></h3><h3><a href="DEFPACKAGE GIL-READ.html#DEFPACKAGE GIL-READ">Package: Gil-read</a></h3><h3><a href="DEFPACKAGE GIL-USER.html#DEFPACKAGE GIL-USER">Package: Gil-user</a></h3><h3><a href="DEFPACKAGE GIL-HTML.html#DEFPACKAGE GIL-HTML">Package: Gil-html</a></h3><hr>Hosted by<br><a href="http://developer.berlios.de/"><img src="http://developer.berlios.de/bslogo.php?group_id=0" ></a></td><td><a name="GIL-use"><h1>GIL from user perspective</h1></a>If things get to nested, try <a href="http://lisp-umac.berlios.de/main.html">the denest macro</a>,
+</head><table><tr><td align="center" colspan=2><span style="font-size:250%;">Lisp-editor</span></td></tr><tr><td width=20% valign="top"><h3><a href="Intro.html#Intro">Intro</a></h3><h3><a href="GIL.html#GIL">General Interface Library/Language (Explanation)</a></h3><h3><a href="GIL-use.html#GIL-use">GIL from user perspective</a></h3><h3><a href="GIL-output.html#GIL-output">GIL output languages</a></h3><hr>Hosted by<br><a href="http://developer.berlios.de/"><img src="http://developer.berlios.de/bslogo.php?group_id=0" ></a></td><td valign="top"><a name="GIL-use"><h1>GIL from user perspective</h1></a>If things get to nested, try <a href="http://lisp-umac.berlios.de/main.html">the denest macro</a>,
 which removes nestedness. <a href="DEFPACKAGE DENEST.html#DEFPACKAGE DENEST">(autodoc)</a>
 <a name="Conventions"><h2>Conventions</h2></a>The most important convention is that any function that works on gil-code accepts that prepared/gone-through glist gil-code as the &rest
 last arguments.
@@ -12,7 +12,8 @@ still just use it as lisp. It seems likely that the alternative notation is more
 CL notation is more useful when the code is more 'code-like'.</p>
 <p>It basically works by taking everything directly after '(' to be
 a symbol, and always turning numbers into numbers. Otherwise it is always a string.
-'\' escapes for a symbol, $ reads a lisp expression as usual, and  makes a statement a unit onto itself; if you want "a b c d" to be read as "a b" "c d", you'd do "a b c d".
+'\' escapes for a single charactere,
+$ reads a lisp expression as usual, and  makes a statement a unit onto itself; if you want "a b c d" to be read as "a b" "c d", you'd do "a b c d".
 This is often useful when you are filling the 'object' argument of a function. specifically it turns into <code>(glist :series ...)</code></p>
 <p>The notation also takes
 <code>{stuff...}</code> as <code>(denest stuff...)</code></p>
@@ -20,9 +21,10 @@ This is often useful when you are filling the 'object' argument of a function. s
 todo.</p> 
 <p>Note that Lisp, defining functions to do stuff for you is a tool to help you write.
 (Although perhaps i will make other types of tools.)</p>
-<a name="GIL-fun-use"><h2>Functions from use-perspective</h2></a>Firstly, <b>don't</b> use any of the 'i-...' functions, in data-like code
+<a name="GIL-fun-use"><h2>Functions from user-perspective</h2></a>Firstly, <b>don't</b> use any of the 'i-...' functions, in data-like code
 these are meant, and if you do, always make the second argument gil:*lang*, that is how the language is passed.
 (Which is later deferred to a
 <a href="http://www.gigamonkeys.com/book/variables.html#dynamic-aka-special-variables">special variable</a>.)
+<p>You can define your own functions to suit your needs.</p>
 TODO further docs.
 </td></tr></table>

@@ -21,40 +21,70 @@
 (defun package-link (pkg &rest objects)
   (apply #'autodoc-gil:mention `(defpackage ,pkg ,@objects)))
 
-;;TODO currently it mixes the contents page.. Figure out how to give them
-;; their respective contents side.
-(let ((*lang* :html)
-      (gils::*attempt-readable* nil)
-      (gils:*handle-page* 
-       (lambda (page)
-	 (table
-	  (list (table-el '(:colspan 2)
-		  (inline-style "(font-size 250%)" "Lisp-editor")))
-	  (list (table-el '(:valign :top)
-			  (gil-info:use-contents :include-upto 1)
-		  (gils::hr) "Hosted by" (newline)
+(defun side-paned-page (sidepane)
+  (lambda (page)
+    (table
+     (list (table-el '(:colspan 2 :align :center)
+		     (inline-style "(font-size 250%)" "Lisp-editor")))
+     (list (table-el '(:valign :top :width "20%")
+	     sidepane
+	     (gils::hr) "Hosted by" (newline)
 ;Note: currently not enough features to do it fully the same as:
 ;<a href="http://developer.berlios.de">
 ;<img src="http://developer.berlios.de/bslogo.php?group_id=0" width="124" height="32" border="0" alt="BerliOS Logo" /></a> 
-		  (url-link "http://developer.berlios.de/"
-		    (glist (mk file-image ;
-			     :filename "http://developer.berlios.de/bslogo.php?group_id=0"))))
-		page))))
-      (autodoc-gil::*treat-args* nil)
-      (autodoc-gil::*treat-title* :title-args))
-  (run-gil
-   `("../website.gil"
-     ,@(mapcar (lambda (pkg)
-		 (let ((gil-info::*contents* nil))
-		   (autodoc-gil:document pkg :pkg :level 2)))
-	       '(:generic :denest
-		 :package-stuff :expression-hook :expression-scan
-  	         :autodoc-gil ; TODO
-		 :gil :gil-share :gil-style 
-		 :gil-info :gil-read :gil-user
-		 :gil-html)))
-   "main.html"
-   :to-path #p"/home/jasper/proj/lisp-editor/doc/html/"))
+	     (url-link "http://developer.berlios.de/"
+		       (glist (mk file-image ;
+			 :filename "http://developer.berlios.de/bslogo.php?group_id=0"))))
+	   (table-el '(:valign :top)
+		     page))))) 
+  
+
+;;TODO currently it mixes the contents page.. Figure out how to give them
+;; their respective contents side.
+
+(defun mk-website ()
+  "Makes the website. Only paginated stuff will appear as file, rest to\
+ standard output."
+  (let*((*default-pathname-defaults*
+	 #p"/home/jasper/proj/lisp-editor/doc/html/")
+	(gils::*attempt-readable* nil)
+	(autodoc-gil::*treat-args* nil)
+	(autodoc-gil::*treat-title* :title-args)
+
+	(gil-info::*links* (make-hash-table))
+	(site-contents
+	 (gil-info:use-contents 
+	  (let ((gil-info::*contents* nil))
+	    (gil-info:gather "../website.gil")
+	    gil-info::*contents*)
+	  :include-upto 1))
+	(autodoc
+	 (glist-list :series
+	   (mapcar (lambda (pkg)
+		     (autodoc-gil:document pkg :pkg :level 2))
+		   '(:generic :denest
+		     :package-stuff :expression-hook :expression-scan
+		     :autodoc-gil
+		     :gil :gil-share :gil-style 
+		     :gil-info :gil-read :gil-user
+		     :gil-html))))
+	(autodoc-contents
+	 (gil-info:use-contents
+	  (let ((gil-info::*contents* nil))
+	    (gil-info:gather autodoc)
+	    gil-info::*contents*)
+	  :include-upto 1))
+	(*lang* :html))
+    (let ((gils:*handle-page* (side-paned-page site-contents)))
+      (call(execute "../website.gil")))
+    (let ((gils:*handle-page* (side-paned-page
+			       (glist :series site-contents
+				 (inline-style "(color gray)"
+				  (header 4 (u(b "Autodoc:"))))
+				 autodoc-contents))))
+      (call autodoc))))
+
+(mk-website)
 
 ;;Doesn't work atm.. Because expression scan misses environment treatment, 
 ;; or just kinks?
@@ -105,7 +135,3 @@
   (let ((gils::*section-page-level* 0)
 	(*lang* :html))
     (call (autodoc-gil:document :cl-fad :pkg))))
-
-(let ((*lang* :html))
-  (call (glist (mk follow-link :name "lala") "meh" "kaka")))
-

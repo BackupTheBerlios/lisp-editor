@@ -9,4 +9,4 @@
 any s-expression, extra information can also be added."
   :serial t
   :depends-on (:generic :denest :expression-scan :gil)
-  :components ((:file "autodoc-gil")))
+  :components ((:file "autodoc")))

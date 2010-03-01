@@ -4,6 +4,8 @@
 (require :cl-fad)
 
 (defun update-license (file)
+  "Updates the license dates.
+ WARNING JUST OVERWRITES THE START!! MAKE SURE INITIAL ALREADY THERE"
   (multiple-value-bind (second minute hour date month year)
       (get-decoded-time)
     (declare (ignore second minute hour))
@@ -18,7 +20,7 @@
 ;;  by the Free Software Foundation, either version 3 of the License, or
 ;;  (at your option) any later version.
 ;;"
-(if (< day 10) (format nil "0~a" day) day)
+(if (< date 10) (format nil "0~a" date) date)
 (if (< month 10) (format nil "0~a" month) month)
 year)))) ;Note: update before 10000
 
@@ -40,3 +42,5 @@ year)))) ;Note: update before 10000
 (update-licenses-in "gtk/")
 (update-licenses-in "log/")
 (update-licenses-in "exemplars/")
+
+(update-license "test-file")
