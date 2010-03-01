@@ -1,0 +1,27 @@
+<head><title>Package: Denest</title><link rel="stylesheet" type="text/css" href="default.css"
+ />
+</head><table><tr><td colspan=2><span style="font-size:250%;">Lisp-editor</span></td></tr><tr><td valign="top"><h3><a href="Intro.html#Intro">Intro</a></h3><h3><a href="GIL.html#GIL">General Interface Library/Language (Explanation)</a></h3><h3><a href="GIL-use.html#GIL-use">GIL from user perspective</a></h3><h3><a href="GIL-output.html#GIL-output">GIL output languages</a></h3><h3><a href="DEFPACKAGE GENERIC.html#DEFPACKAGE GENERIC">Package: Generic</a></h3><h3><a href="DEFPACKAGE DENEST.html#DEFPACKAGE DENEST">Package: Denest</a></h3><h3><a href="DEFPACKAGE PACKAGE-STUFF.html#DEFPACKAGE PACKAGE-STUFF">Package: Package-stuff</a></h3><h3><a href="DEFPACKAGE EXPRESSION-HOOK.html#DEFPACKAGE EXPRESSION-HOOK">Package: Expression-hook</a></h3><h3><a href="DEFPACKAGE EXPRESSION-SCAN.html#DEFPACKAGE EXPRESSION-SCAN">Package: Expression-scan</a></h3><h3><a href="DEFPACKAGE AUTODOC-GIL.html#DEFPACKAGE AUTODOC-GIL">Package: Autodoc-gil</a></h3><h3><a href="DEFPACKAGE GIL.html#DEFPACKAGE GIL">Package: Gil</a></h3><h3><a href="DEFPACKAGE GIL-SHARE.html#DEFPACKAGE GIL-SHARE">Package: Gil-share</a></h3><h3><a href="DEFPACKAGE GIL-STYLE.html#DEFPACKAGE GIL-STYLE">Package: Gil-style</a></h3><h3><a href="DEFPACKAGE GIL-INFO.html#DEFPACKAGE GIL-INFO">Package: Gil-info</a></h3><h3><a href="DEFPACKAGE GIL-READ.html#DEFPACKAGE GIL-READ">Package: Gil-read</a></h3><h3><a href="DEFPACKAGE GIL-USER.html#DEFPACKAGE GIL-USER">Package: Gil-user</a></h3><h3><a href="DEFPACKAGE GIL-HTML.html#DEFPACKAGE GIL-HTML">Package: Gil-html</a></h3><hr>Hosted by<br><a href="http://developer.berlios.de/"><img src="http://developer.berlios.de/bslogo.php?group_id=0" ></a></td><td><a name="DEFPACKAGE DENEST"><h1>Package: Denest</h1></a><p>Macro to denest, remove nestedness of macros
+/functions. Was somewhat of a relevation to me and suprising that this
+function isn't being screamed from the rooftops. Turns out that macros
+like iterate might just be trying to fight nestedness.(Mostly)
+A few macros are given, some are on keywords and specific to denest, to save namespace. They do _exactly_ the same as regular macros however! You
+can use them with the USE-DENEST macro. The macros supplied in this packageIf
+with non-keyword symbols are exported.
+TODO remove some nastyness that might happen if denest is nested with self..
+Can it be done?</p><p>Uses packages: Common-lisp</p><a name="_DENEST-MACROS_"><h2>variable *denest-macros*</h2></a>Macros for denest when given a keyword.<a name="DEFMACRO USE-DENEST-MACRO"><h2>defmacro use-denest-macro(name args )</h2></a><p>Applies a denest macro.</p><p></p><a name="DEFMACRO SUMMING"><h2>defmacro summing((initial without-let )&body body )</h2></a><p>Sum everything asked to, return result.</p><p></p><a name="DEFMACRO RETURN-ACCUMULATE_"><h2>defmacro return-accumulate*((accumulation-manners )&body body )</h2></a><p>Same as return-accumulate, but allows for less parentheses.</p><p></p><a name="DEFMACRO RETURN-ACCUMULATE"><h2>defmacro return-accumulate((accumulation-manners )&body body )</h2></a><p>Produces accumulation into different values-output..
+Must given accumulation-manners given in same way as denest ones, they must
+have form (macro-name (something accumulating-variable ...) ...)</p><p></p><a name="DEFMACRO MINIMIZING"><h2>defmacro minimizing(()&body body )</h2></a><p>Minimized a number. WARNING, TODO can get rid of initial?</p><p></p><a name="DEFMACRO MAXIMIZING"><h2>defmacro maximizing(()&body body )</h2></a><p>Maximizes a number. WARNING, TODO can get rid of initial?</p><p></p><a name="DEFMACRO DENEST-RET"><h2>defmacro denest-ret(&body body )</h2></a><p>Marks where to go back to when the macro returns.
+Only thing that might ever need changing in macros. Doesn't affect normal
+operation of macro.</p><p></p><a name="DEFMACRO DENEST_"><h2>defmacro denest*(arguments )</h2></a><p>denest, but adds some parenthesis so you don't have to write them. Has significant disadvantage; can't do stuff where the body location isn't
+entirely indicated by the parenthesis, like in WITH-SLOTS,
+DESTRUCTURING-BIND, MULTIPLE-VALUE-BIND.</p><p></p><a name="DEFMACRO DENEST"><h2>defmacro denest(args )</h2></a><p>Un-nests stuff, reconstructs macros in order with the body at the end.
+Best and easiest description is: (But the actual version has some more (defmacro denest (&rest args)
+(if (null (cdr args))
+(car args)
+`(,@(car args)
+(denest ,@(cdr args)))))</p><p></p><a name="DEFMACRO DEF-DENEST-MACRO"><h2>defmacro def-denest-macro(name (args )&body body )</h2></a><p>Create a macro applied when denests meets an keyword.
+:return is reserved.</p><p></p><a name="DEFMACRO COLLECTING"><h2>defmacro collecting(()&body body )</h2></a><p>Collect everything asked to, return result. (Also, appending)
+If you want to use two different collectings, you need to provide the
+collect argument.(To avoid namespace collision, and to separate the two.)</p><p><h4>Depends on functions:</h4><b>Package Nil: </b>g2821, g2277, g2261</p><a name="DEFMACRO BESTING"><h2>defmacro besting((valuator intermediate initial )&body body )</h2></a><p>Find best variant of something using function.</p><p></p><a name="DEFMACRO ACCUMULATING"><h2>defmacro accumulating((initial onto operation without-let )&body body )</h2></a><p>Alter a variable with an operation, each time accumulation is called,
+return the result.
+Multiple accumulations need to go by different names.</p><p></p></td></tr></table>

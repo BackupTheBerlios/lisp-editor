@@ -1,54 +1,133 @@
+;;
+;;  Copyright (C) 2010-03-01 Jasper den Ouden.
+;;
+;;  This is free software: you can redistribute it and/or modify
+;;  it under the terms of the GNU Affero General Public License as published
+;;  by the Free Software Foundation, either version 3 of the License, or
+;;  (at your option) any later version.
+;;
 
 (cl:in-package :cl-user)
 
 (defpackage gil-html
-  (:use :common-lisp :generic :gil :gil-share))
+  (:use :common-lisp :generic :gil :gil-share :gil-style)
+  (:documentation "Gil->html, not that the files linked internally are all 
+tracked by gil-info."))
 
 (in-package :gil-html)
 
-(defvar *section-page-level* 1)
+(def-glist* (way t) objects
+  (glist-list way (mapcar #'call objects)))
 
-(defvar *default-style-file* "default")
+;;Some utility
+
+(defparameter *default-style-file* "default.css")
 
 (defun style (&optional (file *default-style-file*))
-  (wformat "<link rel=\"stylesheet\" type=\"text/css\" href=\"~D.css\"\
+  (wformat "<link rel=\"stylesheet\" type=\"text/css\" href=\"~D\"\
  />~%"
 	   file))
 
-(make-gil-definer :html def-gil-method def-gil-method*)
+(defun indent ()
+  (when gils::*attempt-readable*
+    (dotimes (i *indent-depth*)
+      (write-char #\Space))))
 
-(defun surround (with fill)
-  (wformat "<~D>" with)
-  (funcall fill)
-  (wformat "</~D>" (subseq with 0 (position #\Space with))))
+(defun remove-gratuous-whitespace (string &key (n 0))
+  (remove-if (lambda (el)
+	       (case el ((#\Space #\Tab #\Newline)
+			 (setf- + n 1)
+			 (when (> n 1) t))
+		        (t
+			 (setq n 0)
+			 nil)))
+	     string))
 
-;;-----------------------Prep objects---------------------------------------
+(def-call (fun function) (indent) (funcall fun))
+(def-call (str string)
+  (indent)
+  (write-string (if (and gils::*attempt-shorten*
+		         (not gils::*attempt-readable*))
+		  (remove-gratuous-whitespace str)
+		  str)))
+(def-call (num number) (indent) (format t "~a" num))
+(def-call (null null) (declare (ignore null)))
+(def-call anything (error "Not recognized: ~a" anything))
 
-(def-gil-method i-prep (fn function) ()
-  fn)
-(def-gil-method* i-prep (thing t) ()
-  thing)
+;;Styles. (And associated.)
 
-(def-gil-method* i-prep (string string) ()
-  (wformat string))
+(defvar *refer-style* nil)
+(defvar *inline-style* nil)
+(def-glist* (style refer-style) list
+  (let ((*refer-style* style))
+    (call-list list)))
 
-(def-gil-method* i-prep (number number) ()
-  (wformat "~D" number))
+(def-glist* (sl gil-style:style-list) list
+  (with-open-file (css *default-style-file* :direction :output
+		   :if-exists :supersede :if-does-not-exist :create)
+    (write-style-css (slot-value sl 'gil-style::list) css)))
 
-;;-----------------------List-like------------------------------------------
-(def-gil-method* i-glist :p ((list list))
-  (wformat "<p>")
-  (dolist (el list)
-    (funcall el) (write-char #\Newline))
-  (wformat "~%</p>~%"))
+;NOTE: nothing really has accepts-style true; i don't trust it, why does
+;      class not work on ul, and style does, etcetera.. ><
+(defun surround-fn (with fill &optional accepts-style)
+  "Puts xml thingies around, if core also adds style."
+  (let ((style-str      (concatenate 'string
+			  (when *refer-style*
+			    (format nil " class=~a " *refer-style*))
+			  (when *inline-style*
+			    (format nil " style=~a " *inline-style*))))
+	(*refer-style*  nil) (*inline-style* nil))
+    (cond
+      ((and (not accepts-style) (> (length style-str) 0))
+       (surround-fn (format nil "span ~a" style-str)
+		    (lambda () (surround-fn with fill))))
+      (gils::*attempt-readable*
+       (indent)
+       (wformat "<~a~a>~%" with style-str)
+       (let ((*indent-depth* (+ *indent-depth* 1)))
+	 (funcall fill))
+       (write-char #\Newline) (indent)
+       (wformat "</~a>~%" (subseq with 0 (position #\Space with))))
+      (t
+       (wformat "<~a~a>" with style-str)
+       (funcall fill)
+       (wformat "</~a>" (subseq with 0 (position #\Space with)))))))
 
-(def-gil-method* i-glist :series ((list list))
-  (dolist (el list)
-    (funcall el)))
+(defmacro surround (with &body body)
+  `(surround-fn ,with (lambda () ,@body)))
 
-(def-gil-method i-glist (style symbol) ((list list))
-  (i-glist :html (mk dot-list :style style) list))
+(defmacro def-surrounding-glist* (way with &optional accepts-style)
+  (with-gensyms (objects)
+    `(def-glist* ,way ,objects
+       (surround-fn ,with (call-list* ,objects) ,accepts-style))))
 
+(def-surrounding-glist* (style inline-style)
+  (format nil "span style=\"~a\""
+	  (with-output-to-string (stream)
+	    (write-prop-val-css
+	     (slot-value style 'gil-style::style) stream))))
+
+;;List-like.
+
+(def-surrounding-glist* :p "p")
+
+(def-glist* :comment list)
+
+(def-glist* :series list
+  (call-list list))
+(def-glist* :header list
+  (call-list list))
+
+(def-glist* :newline list
+  (assert (null list) nil "arguments not allowed in newline")
+  (wformat "<br\>"))
+(def-glist* :horizontal-ruler list
+  (assert (null list) nil "arguments not allowed in horizontal-ruler")
+  (wformat "<hr\>"))
+
+(def-glist (style symbol) list
+  (unless (null list)
+    (call(glist-list (mk dot-list :style style) list))))
 
 ;;Lister here recognizes for styles (corresponding CSS.):
 ;;  none, circle, disc, square
@@ -57,112 +136,203 @@
 ;;  lower-greek, lower-latin, lower-roman, upper-alpha, 
 ;;  upper-latin, upper-roman
 
-(def-gil-method* i-glist (sep dot-list) ((list list))
-  (let ((style (dot-list-style sep)))
-    (surround (format nil (case style
-			    ((:numbered-list
-			      :armenian :decimal :decimal-leading-zero 
-			      :georgian :lower-alpha :lower-greek
-			      :lower-latin :lower-roman :upper-alpha
-			      :upper-latin :upper-roman)
+(def-glist* (sep dot-list) list
+  (unless (null list)
+    (let ((style (slot-value sep 'gils::style)))
+      (surround (format nil (case style
+			      ((:numbered-list
+				:armenian :decimal :decimal-leading-zero 
+				:georgian :lower-alpha :lower-greek
+				:lower-latin :lower-roman :upper-alpha
+				:upper-latin :upper-roman)
 			       "ol style=\"~D\"")
-			    (t "ul style=\"~D\""))
-		      (if (symbolp style)
-			(symbol-name
-			 (case style
-			   (:numbered-list  :decimal)
-			   (:list           :disc)
-			   (:alt-list       :square)
-			   (t style))) "DISC"))
-	      (lambda ()
-		(dolist (el list)
-		  (surround "li" el)
-		  (write-char #\Newline))))))
+			      (t "ul style=\"~D\""))
+			(if (symbolp style)
+			  (symbol-name
+			   (case style
+			     (:numbered-list  :decimal)
+			     (:list           :disc)
+			     (:alt-list       :square)
+			     (t style))) "DISC"))
+	 (dolist (el list)
+	   (surround "li" (call el)))))))
 
-;;--------------------Links as actions and notes----------------------------
+;;Links as actions and notes.
 
-(def-gil-method* i-action (link link) (object)
-    (let ((name (gils::name link))
-	  (page (find-page name)))
-      (surround (if page
-		  (format nil "a href=\"~a.html#~a\"" page name)
-		  (format nil "a href=\"~a.html\"" gils::name))
-		object)))
+(defun sanitized-link (link &rest args)
+  "TODO not very sturdy.."
+  (substitute #\_ #\* (apply #'format `(nil ,link ,@args))))
 
-(def-gil-method* i-note (note link) (object)
-  (surround (format nil "a name=\"~a\"" (gils::name note)) object))
+(def-glist (link follow-link) objects
+  (let*((name (gils::name link))
+	(page (gil-info::find-link-page name)))
+    (surround 
+	(typecase page
+	  (gil-info::link-entry ;TODO recognize current page.
+	   (let ((page (slot-value page 'gil-info::page)))
+	     (cond
+	       ((string= *cur-page* page)
+		(sanitized-link "a href=\"#~a\"" name))
+	       ((string= *cur-page* "")
+		(sanitized-link "a href=\"~a.html#~a\"" page name))
+	       (t
+		(sanitized-link "a href=\"~a~a.html#~a\""
+		  *default-pathname-defaults* page name)))))
+	  (gil-info::url-entry
+	   (sanitized-link "a href=\"~a\""
+			   (slot-value page 'gil-info::url)))
+	  (null
+	   (sanitized-link "a href=\"~a.html\"" name))
+	  (t
+	   (error "~a" page)))
+      (call-list objects))))
 
-(def-gil-method* i-action (url url-link) (object)
-  (surround (format nil "a href=\"~a\"" (gils::name url)) object))
+(def-surrounding-glist* (note link)
+    (sanitized-link "a name=\"~a\"" (gils::name note)))
 
-;;-------------------Comments----------------------------------------------
-(def-gil-method* i-note :comment (object))
+(def-surrounding-glist* (url url-link)
+    (format nil "a href=\"~a\"" (gils::name url)))
 
-;;-------------------Basic modifiers----------------------------------------
+;;Basic modifiers.
 
-(def-gil-method* i-note :bold (object)
-  (surround "b" object))
-(def-gil-method* i-note :italic (object)
-  (surround "i" object))
-(def-gil-method* i-note :underlined (object)
-  (surround "u" object))
+(def-surrounding-glist* :bold "b")
+(def-surrounding-glist* :italic "i")
+(def-surrounding-glist* :underlined "u")
+(def-surrounding-glist* :code "code")
+;Oh, yeah, html didnt preserve it here.. Kindah silly.
+(def-glist* :p-code objects
+  (surround "code" ;Don't steal the whitespace.
+    (surround "pre"
+      (let ((gils::*attempt-shorten* nil)) (call-list objects)))))
 
-;;-------------------Headers & Sections-------------------------------------
+;;Headers & Sections.
 
-(def-gil-method* i-header (level integer) (object)
-  (surround (format nil "h~D" (clamp level 1 6)) object))
+(def-glist (header header) objects
+  (surround (format nil "h~D" (clamp (slot-value header 'gils::level) 1 6))
+    (call-list objects)))
 
-(def-gil-method i-section
-    (level integer) (name object (paragraphs list))
-  (flet ((result ()
-	   (apply #'glist (append (list :p (header level object))
-				  paragraphs))))
-    (if (> level *section-page-level*)
-      (link-pos (result) name) ;Note: link wraps round whole thing.
-      (with-open-file
-	  (*standard-output* (format nil "~D.html" name) :direction :output
-		  :if-exists :supersede :if-does-not-exist :create)
-	(let ((*cur-page* (gils::get-page (if (stringp name) (intern name)
-					      name))))
-	  (wformat "<head>~%") ;TODO make a note for header-making.
-	  (surround "title" object)
-	  (style)
-	  (wformat "</head>")
-	  (funcall (result)))
-	;Return a notice of a linked section.
-	(p(link (format nil "-> section ~D has own page" name)
-		name *cur-page*))))))
+(def-glist (section section) objects
+  (with-slots (gils::level gils::name gils::title) section
+    (flet ((result ()
+	     (glist-list :series
+			 (cons (link-pos gils::name
+					 (header gils::level gils::title))
+			       objects))))
+      (cond ;Note: link wraps round whole thing.
+	((> gils::level gils::*section-page-level*)
+	 (call (result)))
+	(t
+	 (let*((*default-pathname-defaults*
+		(if-use (gethash gils::name gils::*page-path*)
+			*default-pathname-defaults*)))
+	   (with-open-file
+	       (*standard-output* (sanitized-link "~a.html" gils::name)
+    	        :direction :output
+		:if-exists :supersede :if-does-not-exist :create)
+	     (surround "head" ;TODO better header making.
+               (surround "title" (call gils::title))
+	       (style))
+	     (let ((*indent-depth* 0))
+	       (call (funcall *handle-page* (result))))))
+         ;Return a notice of a linked section.
+	 (call
+	  (p(link gils::name
+	     (format nil "-> section ~D has own page" gils::name)))))))))
 
 ;;Images.
-(def-gil-method* i-prep (image base-image) ()
+(def-glist (image base-image) objects
+  (declare (ignore objects))
   (warn "Html output(at least this version) doesn't know what to do with\
- image type ~D."
-	(type-of image)))
+ image type ~D." (type-of image)))
 
-(def-gil-method* i-prep (image file-image) ()
-  (wformat "<img src=\"~D\" \>" (file-name image)))
+(def-glist* (image file-image) objects
+  (declare (ignore objects)) ;TODO make title, include more html features.
+  (wformat "<img src=\"~D\" \>" (slot-value image 'gils::file-name)))
 
-;;-------------------'Windows'---------------------------------------------
+;;'Windows'.
 
-(def-gil-method* i-glist (split gils::split) ((frames list))
+;TODO choice between table and divider thingy?
+;TODO do via table, below.
+(def-glist* (split gils::split) frames
   (i-glist :check split frames)
   (with-slots (gils::spacing gils::way gils::dir) split
-    (flet ((frames ()
-	     (mapcar
-	      (lambda (frame pos)
-		(surround ;TODO do with styles.
-		 (format nil "td ~s=~a"
-			 (case gils::dir
-			   (:v "width") (:h "height"))
-			 (case gils::way
-			   (:relative
-			    (format nil "~a%" (round (* 100 pos))))
-			   (:absolute
-			    pos)))
-		 frame)
-		(wformat "~%"))
-	      frames gils::spacing)))
+    (labels ((do-frames ()
+	       (mapcar
+		(lambda (frame pos)
+		  (surround
+		   (format nil "td ~s=~a"
+			   (case gils::dir
+			     (:v "width") (:h "height"))
+			   (case gils::way
+			     (:relative
+			      (format nil "~a%" (round (* 100 pos))))
+			     (:absolute
+			      pos)))
+		   (call frame)))
+		frames gils::spacing)))
       (surround "table"
-		(case gils::dir
-		  (:v (lambda () (surround "tr" #'frames)))
-		  (:h #'frames))))))
+	(case gils::dir
+	  (:v (surround "tr" (do-frames)))
+	  (:h (do-frames)))))))
+
+(defun list-format (str &rest args)
+  (list (apply #'format `(,nil ,str ,@args))))
+
+(defmacro tagdata 
+    (value &optional (data-name (string-downcase (symbol-name value))))
+  `(when ,value
+     (list-format "~a=~a" ,data-name ,value)))
+
+(def-call (table-el table-el)
+  (assert gils::*in-table* nil "Table elements _must_ be in a table!")
+  (with-slots (gils::x-size gils::y-size
+	       gils::x-align gils::y-align gils::x-span gils::y-span
+	       gils::contents) 
+      table-el
+    (let ((gils::*in-table* nil))
+      (surround
+       (format nil "td~{ ~a~}"
+	       (append
+		(tagdata gils::x-size "width")
+		(tagdata gils::y-size "height")
+		(when-let align
+		    (case gils::x-align
+		      ((:low :left) "left")
+		      ((:high :right) "right")
+		      ((:center) "center")
+		      ((:justify) "center"))
+		  (list-format "align=\"~a\"" align))
+		(when-let valign
+		    (case gils::y-align
+		      ((:low :bottom) "bottom")
+		      ((:high :top) "top")
+		      ((:center :middle) "middle")
+		      ((:baseline) "baseline"))
+		  (list-format "valign=\"~a\"" valign))
+		(tagdata gils::x-span "colspan")
+		(tagdata gils::y-span "rowspan")))
+       (call-list gils::contents)))))
+
+(def-glist* (table table) elements
+  (with-slots (gils::border gils::frame gils::rules gils::width
+	       gils::cellpadding gils::cellspacing) table
+    (let ((gils::*in-table* t))
+      (flet ((handle-el (el)
+	       (cond
+		 ((listp el)
+		  (error "Tables are only 2 dimensional.\
+ (dont nest lists)"))
+		 ((or (stringp el) (numberp el) (functionp el))
+		  (surround "td" (call el)))
+		 (t ;If type table-el, call above will catch it.
+		  (call el)))))
+	(surround (format nil "table~{ ~a~}"
+		    (append
+		     (tagdata gils::cellpadding)
+		     (tagdata gils::cellspacing)
+		     (tagdata gils::border) (tagdata gils::frame)
+		     (tagdata gils::rules)  (tagdata gils::width)))
+          (dolist (el elements)
+	    (surround "tr"
+	      (cond ((listp el) (mapcar #'handle-el el))
+		    (t          (handle-el el))))))))))

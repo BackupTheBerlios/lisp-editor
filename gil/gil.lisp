@@ -1,13 +1,22 @@
-;;Author: Jasper den Ouden
+;;
+;;  Copyright (C) 2010-03-01 Jasper den Ouden.
+;;
+;;  This is free software: you can redistribute it and/or modify
+;;  it under the terms of the GNU Affero General Public License as published
+;;  by the Free Software Foundation, either version 3 of the License, or
+;;  (at your option) any later version.
+;;
 
-(cl:in-package :cl)
+(cl:in-package :cl-user)
 
 (defpackage :gil
   (:use :common-lisp :generic)
-  (:export mk *lang* rest-version
-	   prep glist action action* note note*
-	   header header* section
-	   i-prep i-header i-section i-glist i-action i-note)
+  (:export mk *lang*
+	   cur-def-lang
+	   i-glist i-call
+	   def-glist def-glist* def-call
+	   glist glist-list
+	   call call-list call-list*)
   (:documentation
    "GIL: General Interface _Library_ (But be sure to confuse people with 
 the L being Language ;) )
@@ -21,102 +30,78 @@ so they're applicable to multiple implementations."))
 
 (in-package :gil)
 
-(defmacro rest-version (name &rest args)
-  `(defmacro ,(intern (format nil "~D*" (symbol-name name)))
-       (,@(butlast args) &rest ,(car(last args)))
-     "Convenience macro for the non-* version.\
- The last argument is &rest-ed."
-     (cons ',name (list ,@args))))
-
 (defmacro mk (type &rest args)
   "Macro to shorten up make-instance."
   `(make-instance ',type ,@args))
 
-(def-changable-var *lang* :init nil
-		   :doc "Current language to convert too.")
+(defvar *lang* nil
+  "Current language to convert too.")
 
-(def-changable-var *cur-page* :init nil)
-(def-changable-var *pages* :init nil)
+(defvar *cur-page* nil)
 
-;;-------------------Preprocessing objects----------------------------------
-(defgeneric i-prep (lang thing)
-  (:documentation "Preprocess object."))
-
-(defmethod i-prep (lang thing)
-  thing)
-(defmethod i-prep (lang (num number))
-  (format nil "~D" num))
-
-(defun prep (thing)
-  (i-prep *lang* thing))
+(defun cur-def-lang (&key (pkg-name (package-name *package*)))
+  "Working on current language."
+  (assert (string= (subseq pkg-name 0 4) "GIL-") nil
+	  "Demand that packages defining outputs are named GIL-..name..")
+  (intern (subseq pkg-name 4) (find-package :keyword)))
 
 ;;-------------------List-like objects--------------------------------------
 
 (defgeneric i-glist (lang way things)
   (:documentation "See glist."))
 
-(defun glist (way &rest things)
+(defmacro def-glist (way objects &body body)
+  (with-gensyms (lang wayv)
+    `(defmethod i-glist ((,lang (eql ,(cur-def-lang)))
+			 ,(if (keywordp way)
+			    `(,wayv (eql ,way)) way)
+			 (,objects list))
+       ,@body)))
+
+(defmacro def-glist* (way objects &body body)
+  `(def-glist ,way ,objects
+     ,@body))
+
+(defun glist-list (way things)
   "Lists of various forms.
-sep:
+way:
  :p    Paragraph-like separations
  :list Point-by-point list, class point-list allows for more specification.
  If you made a custom one, and none applies, it reverts to :p"
-  (i-glist *lang* way (mapcar #'prep things)))
+  (lambda ()
+    (i-glist *lang* way things)))
 
-(defmethod i-glist (lang way (things null))
-  (lambda ()))
+(defun glist (way &rest things)
+  (glist-list way things))
 
-;;-------------------Add anotations to objects------------------------------
+(defmethod i-glist ((lang null) way (things list))
+  (error "The language is not set."))
 
-(defgeneric i-note (lang note object)
-  (:documentation "Adds an annotation to an object."))
+(defmethod i-glist (lang way (things list))
+  (warn "~a not defined for ~a" (type-of way) lang))
 
-(defun note (note &rest objects)
-  "Adds an annotation to an object.
-For instance, as link-pos makes as in gil-suggest, but meant to be more\
- general."
-  (i-note *lang* note (apply #'glist (cons :series objects))))
+(defmethod i-glist (lang way things)
+  (error "Argument should be list, is: ~a" things))
 
-(rest-version note note object)
+;;Applying
 
-;;-------------------Add actions to objects---------------------------------
+(defgeneric i-call (lang thing)
+  (:documentation "Write the stuff."))
 
-(defgeneric i-action (lang action object)
-  (:documentation "Adds posibility of action to object."))
 
-(defun action (action &rest objects)
-  "Adds action to an object. 
-Like following a link, as link does."
-  (i-action *lang* action (apply #'glist (cons :series objects))))
+(defmacro def-call (object &body body)
+  (with-gensyms (lang wayv)
+    `(defmethod i-call ((,lang (eql ,(cur-def-lang)))
+			 ,object)
+       ,@body)))
 
-(rest-version action action object)
+(defun call (thing)
+  (i-call *lang* thing))
 
-;;-------------------Sections and headers-----------------------------------
+(defun call-list (list)
+  (mapcar #'call list))
+(defun call-list* (list)
+  (lambda () (call-list list)))
 
-(defgeneric i-header (lang level object)
-  (:documentation "A title of a paragraph/other."))
-
-(defun header (level object)
-  "A title of a paragraph/other."
-  (i-header *lang* level (prep object)))
-
-(rest-version header level object)
-
-(defgeneric i-section (lang level name object paragraphs)
-  (:documentation "A titled set of paragraphs, defaultly combines header\
- and paragraph itself."))
-
-;Default section behavior.
-(defmethod i-section (lang level name object (paragraphs list))
-  (declare (ignore name))
-  (i-glist lang :p (cons (header level (prep object))
-			 (mapcar #'prep paragraphs))))
-
-(defun section (level name object &rest paragraphs)
-  (i-section *lang* level name (prep object)
-	     (mapcar #'prep paragraphs)))
-
-;;-----------------TODO spatial distribution.-------------------------------
-
-;;Some declaims.
-(declaim (inline glist action note))
+(defmethod i-call ((lang null) thing)
+  (error "The language is not set."))

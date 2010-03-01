@@ -1,0 +1,15 @@
+
+# Anything indicating a backup.
+
+*~
+'#'*'#'
+*/*~
+*/'#'*'#'
+*/*/*~
+*/*/'#'*'#'
+
+gtk/gtk-notes.txt
+
+push.sh
+
+log/.log

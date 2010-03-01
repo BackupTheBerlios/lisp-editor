@@ -1,147 +1,191 @@
-;;Author: Jasper den Ouden
+;;
+;;  Copyright (C) 2010-03-01 Jasper den Ouden.
+;;
+;;  This is free software: you can redistribute it and/or modify
+;;  it under the terms of the GNU Affero General Public License as published
+;;  by the Free Software Foundation, either version 3 of the License, or
+;;  (at your option) any later version.
+;;
+
+;;Note messy file.
 
 (cl:in-package :cl)
 
 (defpackage :gil-share
   (:use :gil :common-lisp :generic)
   (:nicknames :gils)
-  (:export *stream*
-	   *tab-depth* *tab-step* *list-tab-cnt*
+  (:export *indent-depth* *indent-step* *list-tab-cnt*
 	   *cur-char-depth* *line-len* *acceptable-split-ratio*
-	   p paragraph
-	   point-list alt-point-list
-	   dot-list dot-list-style
-	   numbered-list *long-number*
-	   b i u url-link
-	   *link-page-style* link link-pos
-	   *cur-page* *pages* page
-	   comment
-	   wformat call make-gil-definer
-	   base-image file-image title file-name
-	   mk-split)
+	   *long-number*
+	   *handle-page*
+	   p point-list alt-point-list numbered-list
+	   dot-list
+	   
+	   b i u comment p-code code
+	   url-link link-pos
+	   header section *section-level-modifier*
+	   *link-page-style* link follow-link
+	   *cur-page* 
+	   
+	   timestamp
+	   
+	   newline hr
+	   
+	   wformat
+	   base-image file-image
+	   mk-split
+	   table table-el)
   (:documentation "Highly suggested variables, classes and keywords for\
  GIL. Purpose is to standardize these over implementations.
-NOTE early stage."))
+NOTE early stage.
+TODO improve the messyness of the file, split out some stuff."))
 
 (in-package :gil-share)
 
-(def-changable-var *tab-depth* :init 0 :doc "Current tab depth.")
-(def-changable-var *tab-step* :init 3 :doc "Step in 'spaces' per tab.")
+(defun intern* (x &optional (pkg (find-package :gil-share)))
+  (if (stringp x) (intern x pkg) x))
 
-(def-changable-var *line-len* :init 80 :doc "Maximum line length.")
-(defvar *cur-char-depth* 0 "Currect character depth.")
-(defvar *acceptable-split-ratio* 0.8
+(defvar *indent-depth* 0
+  "Current tab depth.")
+(defvar *indent-step* 3
+  "Step in 'spaces' for indentation.")
+(defvar *line-len* 80
+  "Maximum line length.")
+(defvar *cur-char-depth* 0
+  "Current character depth.")
+(defvar *acceptable-line-split-ratio* 0.8
   "If limiting line length, the fraction to split that is still\
- acceptable.")
+ acceptable. TODO more apt name")
 
-(def-changable-var *list-tab-cnt* :init 1
-  :doc "Number of tabs listers make.")
+(defvar *attempt-readable* t
+  "Whether the output/implementation should try produce human-readable\
+ results.")
+(defvar *attempt-shorten* t
+  "Whether to try make it as short as possible.")
 
-;;Convenience functions.
-;;---Lists
-(defun p (&rest paragraph)
-  "List of paragraphs. (glist with :p)"
-  (apply #'glist (cons :p paragraph)))
+(defvar *list-tab-cnt* 1 "Number of tabs listers make.")
 
-(defclass paragraph () ;TODO even used?
-  ((tabs :initarg :tabs :type fixnum :initform 0
-	 :documentation "Number of tabs all over")
-   (jump :initarg :jump :type fixnum :initform 0
-	 :documentation "Number of spaces at the start."))
-  (:documentation "Paragraph possibly all-tabbed, and a tab jump."))
+(defvar *page-path* (make-hash-table)
+  "Hash table with page names that want an alternate path.\
+ (only do it for a reason.)")
+(defvar *handle-page* #'identity
+  "Things that have to be done around a page.")
 
-(defun point-list (&rest paragraphs)
-  "List of points."
-  (apply #'glist (cons :list paragraphs)))
-(defun alt-point-list (&rest paragraphs)
-  "List of alternative style points."
-  (apply #'glist (cons :alt-list paragraphs)))
-
-(defclass dot-list ()
-  ((style :initarg :style :reader dot-list-style))
-  (:documentation "Dots being represented as some text."))
-
-(def-changable-var *long-number* :init 99
-		   :doc "When a number is considered long.")
-
-(defun numbered-list (&rest paragraphs)
-  "Numbered list."
-  (apply #'glist (cons :numbered-list paragraphs)))
-
-;;---Notes
-(defun b (&rest paragraph)
-  "Bold text."
-  (apply #'note (cons :bold paragraph)))
-(defun i (&rest paragraph)
-  "Italic text."
-  (apply #'note (cons :italic paragraph)))
-(defun u (&rest paragraph)
-  "Underlined text."
-  (apply #'note (cons :underlined paragraph)))
-
-;;---Pages.
-(defclass page ()
-  ((name :initarg :name :accessor name :initform nil :type symbol)
-   (link-ends :initarg :link-ends :initform nil :type list)))
-
-(def-changable-var *pages* :init nil :doc "Current existing pages.")
-
-(defun find-page (page-name)
-  "Find a page."
-  (declare (type symbol page-name))
-  (find-if (lambda (p) (eql (slot-value p 'name) page-name)) *pages*))
-(defun get-page (page-name)
-  (declare (type (or symbol string) page-name))
-  (let ((page-name (if (symbolp page-name) page-name (intern page-name))))
-    (if-use (find-page page-name)
-	    (car (push (mk page :name page-name) *pages*)))))
-
-(defun find-link (link-name)
-  "Finds the page the link belongs to."
-  (declare (type symbol link-name))
-  (find-if (lambda (p)
-	     (find link-name (slot-value p 'link-ends)))
-	   *pages*))
-
-(def-changable-var *cur-page* :init nil :doc "Current page.")
-(def-changable-var *link-page-style* :init nil :doc "Way the link is\
+(defvar *cur-page* ""
+  "Current page.")
+(defvar *link-page-style* nil "Way the link is\
  followed with regard to page, may try to open new tab or replace old,
  etcetera..")
 
-;;---Links as action.
+(defvar *timestamp* (get-universal-time))
+(defun timestamp ()
+  (multiple-value-bind
+	(second minute hour date month year day daylight-p zone)
+      (decode-universal-time *timestamp*)
+    (declare (ignore date daylight-p zone))
+    (format nil "~D:~D:~D ~D-~D-~D" 
+	    hour minute second day month year)))
+
+;;Convenience functions.
+(defmacro def-glist-caller (name (&rest args) &body body)
+  "Defines a function that calls i-glist with structure depending on args."
+  (with-gensyms (objects)
+    `(defun ,name (,@args &rest ,objects)
+       ,@(butlast body)
+       (glist-list ,(car(last body)) ,objects))))
+
+;;---Lists
+(def-glist-caller p () "List of paragraphs. (glist with :p)" :p)
+(def-glist-caller point-list () "List of points." :list)
+(def-glist-caller alt-point-list () 
+  "List of alternative style points." :alt-list)
+
+(defclass dot-list ()
+  ((style :initarg :style))
+  (:documentation "Dots being represented as some text."))
+
+(defvar *long-number* 99 "When a number is considered long.")
+
+(def-glist-caller numbered-list () "Numbered list." :numbered-list)
+
+(defun newline ()
+  (glist :newline))
+(defun hr ()
+  (glist :horizontal-ruler))
+
+;;---Notes
+(def-glist-caller b () "Bold text." :bold)
+(def-glist-caller i () "Italic text." :italic)
+(def-glist-caller u () "Underlined text." :underlined)
+
+(def-glist-caller comment () "Comment, hidden." :comment)
+
+(defmethod i-glist (lang (way (eql :comment)) (list list))
+  (declare (ignore lang way list))
+  (lambda ()))
+
+(def-glist-caller code () "Note that it is code." :code)
+(def-glist-caller p-code () "Note that it is code in paragraph." :p-code)
+
+;;---Sections and headers
+
+(defvar *section-level-modifier* 0)
+
+(defclass header ()
+  ((level :initarg :level :initform 0 :type fixnum)))
+
+(defun header (level &rest objects)
+  "A title of a paragraph/other."
+  (glist-list (mk header :level level) objects))
+
+(defclass section (header)
+  ((name :initarg :name)
+   (title :initarg :title)))
+
+(defmethod i-glist (lang (section section) (objects list))
+  (with-slots (level name title) section
+    (i-glist *lang* :series
+      (cons (i-glist *lang* (mk header :level level) title) objects))))
+
+(defun section (level name title &rest objects)
+  "Makes a section. If title NULL, will use name, if name NULL, it is just\
+ a header."
+  (if name
+    (glist-list
+     (mk section :level level :name name :title (if-use title name))
+     objects)
+    (glist-list :series (cons (header level title) objects))))
+
+;;Some page-stuff
+(defvar *section-page-level* 1)
+
 (defclass link ()
-  ((page :initarg :page :accessor page :type (or null page))
-   (name :initarg :name :accessor name :type symbol))
-  (:documentation "Link to a position."))
+  ((name :initarg :name :accessor name :type symbol))
+  (:documentation "Noting a position."))
 
-(defun intern* (x)
-  (if (stringp x) (intern x) x))
+(defclass follow-link (link) () (:documentation "Go to noted position."))
 
-(defun link (object link-name &optional page)
-  "Adds action to link to an object."
-  (let*((link-name (intern* link-name))
-	(page (typecase page
-		(null   (find-link link-name))
-		(string (get-page page))
-		(symbol (get-page page))
-		(t      page))))
-    (when page
-      (pushnew link-name (slot-value page 'link-ends)))
-    (action (mk link :page page :name link-name) object)))
-
-(defclass url-link ()
-  ((name :initform "" :initarg :name :type string :reader name)))
-
-(defun url-link (name object)
-  "Link to the outside with url. Avoid linking inside via url!"
-  (action (mk url-link :name name) object))
+(defun link (link-name &rest objects)
+  "Follow-link."
+  (glist-list (mk follow-link :name (intern* link-name))
+	      (if-use objects (list (format nil "~a" link-name)))))
 
 ;;And link-positions; annotations that links can go there by some name.
-(defun link-pos (object link-name)
+(defun link-pos (link-name &rest objects)
   "Adds a notation that links can go here."
-  (let ((link-name (intern* link-name)))
-    (apply #'note (list (mk link :name link-name)
-			object))))
+  (glist-list (mk link :name (intern* link-name (find-package :gils)))
+	      (if-use objects
+		      (list (format nil "~a" link-name)))))
+
+(defclass url-link ()
+  ((name :initform "" :initarg :name :type string :reader name))
+  (:documentation "Link to url."))
+
+(defun url-link (name &rest objects)
+  "Link to the outside with url. Avoid linking inside via url!"
+  (glist-list (mk url-link :name name)
+    (if-use objects
+	    (list (format nil "~a" name)))))
 
 ;;Some declaims.
 (declaim (inline p b i u link link-pos))
@@ -155,35 +199,6 @@ NOTE early stage."))
 	 (write-char #\Space)))
      (format *standard-output* ,str ,@args)))
 
-(defun call (obj)
-  (if (functionp obj)
-    (funcall obj) (wformat obj)))
-
-(defmacro make-gil-definer
-    (lang-name mac-name lambda-mac
-     &key (has-docstr '(and (cdr body) (stringp(car body))))
-          (strip-body `(if ,has-docstr (cdr body) body)))
-  "Makes a def-gil-method for a language."
-  `(progn
-     (defmacro ,mac-name (name sep-type (&rest args) &body body)
-  "Defines a method with the language argument filled for you. Meant for use
- internal to gil-html only."
-  (with-gensyms (sep)
-    `(defmethod ,name
-	 ((lang (eql ,,lang-name))
-	  ,(cond
-	    ((or (numberp sep-type) (keywordp sep-type))
-	     `(,sep (eql ,sep-type)))
-	    ((and sep-type (symbolp sep-type))
-	     sep-type)
-	    ((listp sep-type)
-	     sep-type))
-	  ,@args)
-       ,@,strip-body)))
-     (defmacro ,lambda-mac (name sep-type (&rest args) &body body)
-       `(,',mac-name ,name ,sep-type (,@args) ,@(when ,has-docstr (car body))
-	  (lambda () ,@,strip-body)))))
-
 ;;Images.
 
 (defclass base-image ()
@@ -194,9 +209,6 @@ NOTE early stage."))
   ((file-name :initarg :filename :accessor file-name))
   (:documentation "Images named by file."))
 
-(defun comment (&rest code)
-  (apply #'note (cons :comment code)))
-
 ;;Separation in parts.
 
 (defclass split ()
@@ -204,7 +216,10 @@ NOTE early stage."))
    (way :initarg :way
 	:initform :relative :type (or (eql :relative)
 				      (eql :absolute)))
-   (dir :initarg :dir :initform :v :type (or (eql :v) (eql :h)))))
+   (dir :initarg :dir :initform :v :type (or (eql :v) (eql :h))))
+  (:documentation "Splits the whole thing into separate parts.\
+ Not to be used for tables.
+TODO do tables, think about whether split makes sense as is.."))
 
 (defun mk-split (splits &key (dir :v) (way :relative))
   "Makes a split screen for input into glist."
@@ -212,8 +227,49 @@ NOTE early stage."))
 
 (defmethod i-glist ((lang (eql :check)) (split split) (frames list))
   (with-slots (spacing way) split
-    (unless (= (length frames) (+ (length spacing)
+    (assert (= (length frames) (+ (length spacing)
 				  (if (eql gils::way :absolute) 1 0)))
-      (error "There must be a start of each frame~s"
-	     (if (eql gils::way :absolute)
-	       " and one for the ending when absolute." ".")))))
+	    nil "There must be a start of each frame~s"
+	    (if (eql gils::way :absolute)
+		" and one for the ending when absolute." "."))))
+
+(defclass table ()
+  ((cellpadding :initarg :cellpadding :initform nil)
+   (cellspacing :initarg :cellspacing :initform nil)
+   (border :initarg :border :initform nil)
+   (frame  :initarg :frame  :initform nil)
+   (rules  :initarg :rules  :initform nil)
+   (width  :initarg :width  :initform nil)))
+
+(defvar *in-table* nil)
+
+(defclass table-el ()
+  ((x-size :initarg :x-size :initform nil)
+   (y-size :initarg :y-size :initform nil)
+   (x-align :initarg :x-align :initform nil)
+   (y-align :initarg :y-align :initform nil)
+   (x-span :initarg :x-span :initform nil)
+   (y-span :initarg :y-span :initform nil)
+
+   (contents :initarg :contents :initform nil))
+  (:documentation "Table element. *only* in tables!"))
+
+(defun table (&rest elements)
+  "Makes a table, table-elements allowed inside."
+  (glist-list (mk table) elements))
+
+(defun table-el (properties &rest contents)
+  "Element for tables"
+  (destructuring-bind (&key width height align valign colspan rowspan
+		       (x-size width) (y-size height)
+		       (x-align align) (y-align valign) 
+		       (x-span colspan) (y-span rowspan))
+      properties
+    (make-instance 'table-el
+      :x-size x-size :y-size y-size
+      :x-align x-align :y-align y-align
+      :x-span x-span :y-span y-span :contents contents)))
+    
+(defmethod i-glist (lang (table-el table-el) things)
+  (declare (ignore lang things))
+  (error "Table elements are to be caught with CALL."))

@@ -1,3 +1,11 @@
+;;
+;;  Copyright (C) 2010-03-01 Jasper den Ouden.
+;;
+;;  This is free software: you can redistribute it and/or modify
+;;  it under the terms of the GNU Affero General Public License as published
+;;  by the Free Software Foundation, either version 3 of the License, or
+;;  (at your option) any later version.
+;;
 
 (cl:in-package :cl)
 
@@ -36,6 +44,8 @@ Used for gathering information on code autodoc via expression-scan."))
 (defvar *eh-sym-macs* (list)
   "List of symbol-macros.")
 
+(defvar *discontinue* nil)
+
 (defmacro def-base-macro (name (&rest args) &body body)
   "Adds a base macro."
   (let ((form (gensym))
@@ -51,8 +61,8 @@ Used for gathering information on code autodoc via expression-scan."))
 	  (t	   
 	   `((setf (gethash ',name *base-macros*) #',base-macro)))))))
 
-(defparameter *ignore-packages*
-  (list :sb-impl :sb-int :sb-c :sb-pcl :sb-kernel) ;TODO SBCL specific.
+(defparameter *ignore-packages* ;TODO SBCL specific.
+  (list :sb-impl :sb-int :sb-c :sb-pcl :sb-kernel :sb-loop)
   "Packages, when encountered, it stops scanning.")
 
 (defun expand (form)
@@ -66,6 +76,7 @@ Used for gathering information on code autodoc via expression-scan."))
  lexical binds to pass information down."
   (denest ;Denest, because COND won't let you make vars.
   ;Do-nothing.
+   (if *discontinue* nil)
    (if (null form) form)
   ;Apply possible symbol-macros.
    (if (symbolp form)
@@ -115,7 +126,7 @@ Used for gathering information on code autodoc via expression-scan."))
    (dolist (v vars)
      (cond
        ((listp v) v
-	(destructuring-bind (var val) v
+	(destructuring-bind (var &optional val) v
 	  (col-bind `(,var ,(expand val)))
 	  (col-var var)))
        (t

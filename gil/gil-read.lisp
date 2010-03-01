@@ -1,3 +1,11 @@
+;;
+;;  Copyright (C) 2010-03-01 Jasper den Ouden.
+;;
+;;  This is free software: you can redistribute it and/or modify
+;;  it under the terms of the GNU Affero General Public License as published
+;;  by the Free Software Foundation, either version 3 of the License, or
+;;  (at your option) any later version.
+;;
 
 (cl:in-package :cl-user)
 
@@ -5,142 +13,116 @@
   (:use :common-lisp :generic :denest)
   (:documentation "Stream reader for GIL.
 TODO needs to filter out whitespace gil-execute")
-  (:export gil-read execute gil-execute))
+  (:export gil-read execute))
 
 (in-package :gil-read)
 
-(defun is-whitespace (ch)
-  (case ch ((#\Newline #\Space #\Tab) t)))
+(defvar *buffer-len* 1024)
+(defvar *buffer* (make-string *buffer-len*))
 
-(defun read-symbol
-    (stream &key (buffer-len 256) (buffer (make-string buffer-len)))
-  (declare (type string buffer))
-  (do ((ch (read-char stream nil nil) (read-char stream nil nil))
-       (i 0 (+ i 1)))
-      ((or (not ch) (case ch
-		      ((#\Newline #\Space #\Tab #\) #\( #\| #\{ #\} #\}
-		        #\~ #\. #\,) t))
-	   (>= i (length buffer)))
-       (progn (unread-char ch stream)
-	      (intern (string-upcase (subseq buffer 0 i)))))
-    (setf (aref buffer i) ch)))
+(defun gil-read-col (stream &key funlike)
+  (collecting () (gil-read stream :fn #'collecting :funlike funlike)))
 
-(defun read-integer
-    (stream &key (buffer-len 256) (buffer (make-string buffer-len)))
-  (declare (type string buffer))
-  (do ((i 0 (+ i 1))
-       (ch (read-char stream nil nil) (read-char stream nil nil)))
-      ((or (not ch) (not (digit-char-p ch)))
-       (progn (unread-char ch stream)
-	      (values (parse-integer (subseq buffer 0 i)) i)))
-    (setf (aref buffer i) ch)))
+(defun gil-read (stream &key fn (buf-i 0) (digit 0) funlike)
+  (labels ((add-buffer (ch)
+	     (setf (aref *buffer* buf-i) ch
+		   buf-i (+ buf-i 1))
+	     (when (= buf-i *buffer-len*)
+	       (dump-buffer)))
+	   (dump-buffer ()
+	     (when (> buf-i 0)
+	       (if (> digit 0)
+		 (let*((f (- buf-i digit))
+		       (n (read-from-string
+			   (subseq *buffer* f buf-i))))
+		   (unless (= f 0)
+		     (funcall fn (subseq *buffer* 0 f)))
+		   (funcall fn n))
+		 (funcall fn (subseq *buffer* 0 buf-i)))
+	       (setf buf-i 0))
+	     (setf digit 0)
+	     (values)))
+    (do ((ch (read-char stream nil nil) (read-char stream nil nil)))
+	((not ch) (dump-buffer))
+      (case ch
+	(#\(
+	 (dump-buffer)
+	 (let ((read (read stream)))
+	   (funcall fn `(,read ,@(gil-read-col stream :funlike t))))
+	 (setf funlike nil)) ;Otherwise we'll miss whitespace.
+	(#\)
+	 (dump-buffer)
+	 (return))
+	(#\\ ;Escape character.
+	 (setq funlike nil)
+	 (when-let ch (read-char stream nil nil)
+	   (add-buffer ch)))
+	(#\$ ;Force (nearly)regular lisp.
+	 (dump-buffer)
+	 (funcall fn (read stream))
+	 (unread-char #\Space stream))
+	(#\#
+	 (cond
+	   ((char= #\( (read-char stream))
+	    (dump-buffer)
+	    (funcall fn `(gil:glist :series ,@(gil-read-col stream))))
+	   (t
+	    (add-buffer #\#))))
+	((#\Space #\Newline #\Tab)
+	 (when (or (> digit 0) (> buf-i (/ *buffer-len* 2)))
+	   (dump-buffer)) ;If integer, dump integer, if word finished and 
+	                  ;more than halfway buffer, dump buffer.
+	 (setf digit 0)
+	 (unless funlike
+	   (add-buffer ch)))
+	(t
+	 (cond
+	   ((< digit 0)
+	    (setf funlike nil))
+	   ((or (digit-char-p ch) (and (char= ch #\.) (> digit 0)))
+	    (setf- + digit 1))
+	   (t
+	    (setf funlike nil
+	          digit -1)))
+	 (add-buffer ch))))))
 
-(defun read-number
-    (stream &key (buffer-len 256) (buffer (make-string buffer-len)))
-  (declare (type string buffer))
-  (let ((x (read-integer stream :buffer buffer))
-	(ch (read-char stream nil nil)))
-    (cond 
-      ((not ch)       x)
-      ((char= #\. ch) (multiple-value-bind (y i)
-			  (read-integer stream :buffer buffer)
-			(+ x 0d0 (/ y (expt 10 i)))))
-      (ch             (unread-char ch stream)
-		      x))))
+(defpackage :gil-user
+  (:use :cl :gil :gils :gil-style :denest))
 
-(defun gil-read
-    (stream &key fn denest (depth 0) (*package* (find-package :gil-share))
-                 (buffer-len 256) (buffer (make-string buffer-len)))
-  "Reads 'gil files' which are basically lisp expressions with everything\
- defaultly strings ( and )  are not, \\ escapes, {} make use of denest,\
- $ makes cl:read take over for an expression, integers after whitespace\
- are read as integers.
-For conveniant string/pathname/stream to stream conversion, use\
- generic:with-stream.
+(defun execute-file (file-name)
+  (gil:glist-list :series
+    (denest
+     (collecting (nil list))
+     (flet ((collect-eval (item)
+	      (collecting (eval item)))))
+     (let ((len (length file-name)))
+       (with-open-file (stream file-name)
+	 (if (string= (subseq file-name (- len 5)) ".lisp")
+	   (do ((read (read stream nil :done) (read stream nil :done)))
+	       ((eql read :done) nil)
+	     (collect-eval read))
+	   (gil-read stream :fn #'collect-eval)))))))
 
-TODO optional, checked end-tag"
-  (declare (type boolean denest)
-	   (type fixnum depth buffer-len) (type string buffer))
-  (denest
-   (collecting (nil ret collect))
-   (let ((i 0) prev-white))
-   (macrolet ((col (item)
-		`(progn (dump)
-			(if fn (funcall fn ,item)
-			       (collect ,item))))))
-   (labels ((dump ()
-	      (setq prev-white nil)
-	      (unless (= i 0) ;Not empty or has whitespaces all over.
-		(unless (when-let p
-			    (position-if-not #'is-whitespace buffer)
-			  (>= p i))
-		  (collect (subseq buffer 0 i)))
-		(setq i 0)))
-	    (read-ch ()
-	      (read-char stream nil nil))
-	    (add-ch (ch)
-	      (cond
-		((< i (length buffer))
-		 (setf (aref buffer i) ch
-		       i (+ i 1)))
-		(t
-		 (dump)
-		 (add-ch ch))))
-	    (ret ()
-	      (dump)
-	      (return-from gil-read ret))))
-   (do ((ch (read-ch) (read-ch)))
-       ((not ch) (values))
-     (case ch
-       (#\( (col (cons (read-symbol stream :buffer buffer)
-		       (gil-read stream :depth (+ depth 1)
-				 :buffer buffer))))
-       (#\) (if denest (error "Denested part not closed with an }")
-		(ret))) ;Done with sublist.
-       (#\$ (col (read stream))) ;Use normal CL reading.
-       (#\# (when-let ch (read-ch) ;Read something as one object.
-	      (unless
-		  (when (char= ch #\()
-		    (dump)
-		    (dolist (el (gil-read stream
-					  :depth depth :buffer buffer))
-		      (col el))
-		    t)
-		(unread-char ch stream))))
-    ;Denested - indicators
-       (#\{ (col `(denest ,@(gil-read stream :denest t
-			      :depth (+ depth 1) :buffer buffer))))
-       (#\} (if denest (ret)
-		(error "Non-denested closed with a denesting }.")))
-       (#\\ (if-let ch (read-char stream nil nil) ;Escape character.
-	      (add-ch ch)
-	      (ret)))
-       (t
-	(if (is-whitespace ch)
-	  (unless
-	      (when-let ch (read-ch) ;Look out for numbers and #\$
-		(unread-char ch stream)
-		(cond
-		  ((digit-char-p ch)
-		   (col (read-number stream :buffer buffer))
-		   t)
-		  ((char= ch #\$)
-		   t)))
-          ;Don't read multiple whitespaces in sequence.
-	    (unless prev-white
-	      (add-ch ch)))
-	  (add-ch ch))))
-     (setq prev-white (is-whitespace ch)))))
-
-(defun execute (input &key (fn #'eval))
+(defun execute (from)
   "Reads and then produces using whatever is in gil:*lang*. 
 You need to funcall output if you're not using it in-line;
-see gil-execute if you want to output."
-  (if (listp input) (eval input)
-    (with-open-file (stream input)
-      (gil-read stream :fn fn))))
+see gil-execute if you want to output.
 
-(defun gil-execute
+TODO track checksums(keyword currently ignored), and relevant arguments.
+ (If arguments change it will need to be redone regardless.)"
+  (cond
+    ((functionp from)
+     from)
+    ((listp from)
+     (lambda ()
+       (mapcar (lambda (el)
+		 (funcall (execute el))) from)))
+    ((stringp from)
+     (execute-file from))
+    (t
+     (error "~a not recognized" from))))
+
+ #|(defun gil-execute
     (from-file &key (to-file "doc.html") (to-path ".")
      (use-package '(:cl :gil :gils :gil-read))
      (funcall t))
@@ -159,4 +141,4 @@ see gil-execute if you want to output."
 	       (let ((evalled (eval `(progn (in-package ,pkg-name)
 					    ,item))))
 		 (if funcall (funcall evalled) evalled))))
-    (close *standard-output*)))
+    (close *standard-output*)))|#

@@ -1,3 +1,11 @@
+;;
+;;  Copyright (C) 2010-03-01 Jasper den Ouden.
+;;
+;;  This is free software: you can redistribute it and/or modify
+;;  it under the terms of the GNU Affero General Public License as published
+;;  by the Free Software Foundation, either version 3 of the License, or
+;;  (at your option) any later version.
+;;
 
 (cl:in-package :cl)
 
@@ -9,15 +17,20 @@
   (:export add-scanner-fun def-scanner ;TODO are all these needed?
 	   fun-scanner
 	   *additional-scan* access-result *scan-result*
-	   scan-expression-hook
+	   
+	   scan-expression-hook scan-macro-hook
+	   
 	   scan-expr scan-file scan-loadfile scan-system
-	 ;Some of the scanners that come with it
-	   track-fun track-var ;Functions and macros, variables.
+	 ;Some of the scan data that come with it
+	   track-fun track-var
+	   track-form track-generic track-method
 	   type name args init fun-dep var-dep flet-dep var-dep other
-	   track-generic)
+	   
+	   add-scanner def-scanner expr)
   (:documentation 
    "Can create and use expression-hook to obtain information about code.
-Any s-expression can be tracked. (So macros and functions can be tracked."))
+Any s-expression can be tracked. (So macros and functions can be tracked.)
+"))
 
 ;;TODO reader-macro to try fish out some comments?
 
@@ -29,38 +42,53 @@ Any s-expression can be tracked. (So macros and functions can be tracked."))
   "List of functions for scanning besides every expression.\
  (Rather then fun-scan, elements of which only scan specific macros.")
 
+(defvar *reading-myself* nil)
+
 (defgeneric name (obj) (:documentation "Gets name of object."))
 
 (defun add-scanner-fun (for-name scan-function)
   "Adds a scanner for a macro/function."
   (declare (type function scan-function))
-  (setf (gethash for-name  *fun-scan*) scan-function))
+  (setf (gethash for-name *fun-scan*) scan-function))
 
 (defmacro def-scanner (for-name (&rest args) &body body)
-  "Add-scanner-fun, but does the creation of function for you."
-  (with-gensyms (code)
-    `(flet ((scanning-fun (,code)
-	      ,@(when (stringp (car body)) (list(car body)))
-	      (destructuring-bind (,@args) ,code
+  "Add-scanner-fun, but does the creation of function for you.
+Note that the variable expr contains the whole expression."
+  `(flet ((scanning-fun (expr)
+	    ,@(when (stringp (car body)) (list(car body)))
+	    (destructuring-bind (,@args) (cdr expr)
 		,@body)))
-       (add-scanner-fun ',for-name #'scanning-fun))))
+     (add-scanner-fun ',for-name #'scanning-fun)))
 	      
-(defparameter *scan-result* (make-hash-table :test 'equalp)
+(defvar *scan-result* (make-hash-table :test 'equalp)
   "Lists result by name.")
 
 (defun access-result (fun-name name)
-  "Accesses result of scan of macro/function."
+  "Accesses result of scan of macro/function.
+Providing a list of fun-names will search them in sequence."
   (cond
     ((null fun-name) nil)
     ((listp fun-name)
       (if-use (access-result (car fun-name) name)
 	      (access-result (cdr fun-name) name)))
-    (t (gethash (vector fun-name name) *scan-result*))))
+    (t
+     (gethash (vector fun-name name) *scan-result*))))
+
 (defun (setf access-result) (to fun-name name)
   "See non-setf version."
   (setf (gethash (vector fun-name name) *scan-result*) to))
 
 (defvar *ignore-packages* (list :sb-impl :sb-int :sb-c :sb-pcl :sb-kernel))
+
+(def-scanner in-package (name)
+  (if-let to-package (find-package name)
+    (setq *package* to-package)
+    (progn
+      (warn "Couldn't find package for ~a. It might not have been loaded.
+Discontinued scan."
+	    name)
+      (setq expr-hook::*discontinue* t)))
+  expr)
 
 ;;The scanner hook. ;TODO scan asdf stuff.
 (defun scan-expression-hook (expr)
@@ -73,6 +101,13 @@ Any s-expression can be tracked. (So macros and functions can be tracked."))
        (funcall fn expr))) ;Trackers need to expand-hook, (otherwise stops.)
    (expand-hook expr))) ;Otherwise expand-hook itself.
 
+(defun scan-macrohook (expander form env)
+  "Function for in *macroexpand-hook*, doesn't make a nearly as complete\
+ scan, but will work with regular loading."
+  (when-let fn (gethash (car form) *fun-scan*)
+    (funcall fn form))
+  (funcall expander form env))
+
 ;;Scanning stuff.
 (defun scan-file (stream
 		  &key (*package* *package*)
@@ -82,13 +117,12 @@ Any s-expression can be tracked. (So macros and functions can be tracked."))
     (with-open-file (stream stream)
       (scan-file stream
 		 :*package* *package* :expression-hook expression-hook))
-    (let*((*expression-hook*
-	   (lambda (expr)
-	     (if (and (listp expr) (eql (car expr) 'in-package))
-	       (setq *package* (find-package (cadr expr)))
-	       (funcall expression-hook expr)))))
+    (let ((expr-hook::*discontinue* nil)
+	  (*expression-hook* expression-hook)
+	  (*reading-myself* t))
       (do ((read nil (read stream nil 'end-of-file)))
-	  ((eql read 'end-of-file) nil)
+	  ((or (eql read 'end-of-file)
+	       expr-hook::*discontinue*) nil)
 	(expand read)))))
 
 (defun scan-loadfile (stream)
@@ -117,10 +151,12 @@ Any s-expression can be tracked. (So macros and functions can be tracked."))
 	(make-instance class :form expr))
   (expand-hook expr))
 
-(defclass track-package (track-form)
-  () (:documentation "Tracks defpackage."))
-
-(add-scanner-fun 'defpackage (curry #'form-scanner :class 'track-package))
+(def-scanner defpackage (name &rest rest)
+  (let ((name (typecase name ;Always in keyword.
+		(string (intern name :keyword))
+		(symbol (intern (symbol-name name) :keyword)))))
+    (form-scanner `(defpackage ,name ,@rest)))
+  expr)
 
 ;;Data tracker for functions and macros.
 ;; Note the convention is to not track data already readily available, 
@@ -141,16 +177,22 @@ Any s-expression can be tracked. (So macros and functions can be tracked."))
   (:documentation
    "Structure to contain information on functions and macros."))
 
+(defun fun-like-scanner
+    (type name args &optional (expand-further (lambda ())))
+  (let ((fun (make-instance 'track-fun :name name :args args
+		:type type :in-funs *in-funs*)))
+    (let ((*in-funs* (cons fun *in-funs*)))
+      (values (funcall expand-further) fun))))
+
 (defun fun-scanner (expr)
   "Function to scan function/macro."
-  (destructuring-bind (type name (&rest args) &body body) expr
-    (declare (ignore body))
-    (when (access-result type name)
-      (warn "Function ~D encountered twice." name))
-    (setf (access-result type name)
-	  (make-instance 'track-fun :type type :in-funs *in-funs*
-			 :name name :args args))
-    (expand-hook expr)))
+  (destructuring-bind (type name args &rest ignore) expr
+    (declare (ignore ignore))
+    (multiple-value-bind (result fun)
+	(fun-like-scanner type name args
+			  (lambda () (expand-hook expr)))
+      (setf (access-result type name) fun)
+      result)))
 
 (add-scanner-fun 'defun #'fun-scanner)
 (add-scanner-fun 'defmacro #'fun-scanner)
@@ -181,35 +223,47 @@ Any s-expression can be tracked. (So macros and functions can be tracked."))
   (push #'additional-scanner-fun *additional-scan*))
 
 (defclass track-generic (track-form)
-  ((methods :initarg :methods :type list))
+  ((methods :initarg :methods :initform nil :type list)
+   (args :initarg :args :type list))
   (:documentation "Tracks method generic declarations."))
 
-(add-scanner-fun 'defgeneric
-  (lambda (expr)
-    (destructuring-bind (type name &rest rest) expr
-      (declare (ignore rest))
-    ;Make it, if methods already existed, incorporate.
-      (setf (access-result type name)
-	    (make-instance 'track-generic :form expr
-	      :methods (when-let prev (access-result type name)
-			 (slot-value prev 'methods)))))
-    (expand-hook expr)))
+(def-scanner defgeneric (name &rest rest)
+  (declare (ignore rest))
+  ;Make it, if methods already existed, incorporate.
+  (setf (access-result 'defgeneric name)
+	(make-instance 'track-generic :form expr
+	  :methods (when-let prev (access-result 'defgeneric name)
+		     (slot-value prev 'methods))))
+  expr)
 
-(add-scanner-fun 'method
-  (lambda (expr)
-    (prog1 (fun-scanner expr)
-      (destructuring-bind
-	    (type name (&rest args) &option dstr &body body) expr
-	(declare (ignore body))
-	(setf (access-result type name)
-	      (make-instance 'track-form :form `(,type ,name ,args ,dstr)))
-	(let((gen (if-use ;Automatically makes a generic if not scanned.
-		   (access-result 'defgeneric name)
-		   (setf (access-result 'defgeneric name)
-			 (make-instance 'track-generic :name name
-			   :args (mapcar #'delist args))))))
-	  ;Push the method.
-	  (push (access-result type name) (slot-value gen 'methods)))))))
+(defclass track-method (track-fun)
+  ((way :initarg :way :initform nil :type symbol)))
+
+(def-scanner defmethod (name way/args &optional args/dstr
+			     dstr/body &body body)
+  "Scans a method. Notably not in a new entry, lists on the defgeneric."
+  (multiple-value-bind (args dstr body)
+      (cond
+	((listp way/args)
+	 (values way/args args/dstr (cons dstr/body body)))
+	((listp args/dstr)
+	 (values args/dstr dstr/body body))
+	(t                 (error "")))
+    (let((gen
+	  (if-use ;Automatically makes a generic if not scanned.
+	   (access-result 'defgeneric name)
+	   (setf (access-result 'defgeneric name)
+		 (make-instance 'track-generic
+		   :form `(defgeneric ,name (,@(mapcar #'delist args))
+			    ,@(when dstr `((:documentation ,dstr)))))))))
+     ;Push the method.
+      (multiple-value-bind (result fun)
+	  (fun-like-scanner 'defmethod name args
+			    (lambda () (expand-hook expr)))
+	(push (change-class fun 'track-method
+			    :way (when (symbolp way/args) way/args))
+	      (slot-value gen 'methods))
+	result))))
 
 ;;Data tracker for variables.
 (defclass track-var (track-form)
@@ -232,63 +286,36 @@ fun-dep and var-dep for initform!"))
 (add-scanner-fun 'defclass #'form-scanner)
 (add-scanner-fun 'defstruct #'form-scanner)
 
-(defvar *system-packages* nil)
+;;Scanning asdf systems; load the asd file.
+(defvar *follow-asdf-systems* :also-load)
 
-;;Scanning asdf systems.
-(when (find-package :asdf)
-  
-  (defun scan-system
-      (sys
-       &key (verbose t) version proclamations
-       (load-hook
-	(lambda (sys)
-	  (declare (ignore sys))
-	  (values verbose version proclamations)))
-       (expression-hook #'scan-expression-hook) (recurse-cnt 0))
-    (when (symbolp sys) ;Turn keywords into names.
-      (setf sys (asdf:find-system sys)))
-   ;First assure that it is there.(We need to macros to actually be loaded.)
-    (multiple-value-bind (verbose version proclamations)
-	(funcall load-hook sys)
-      (asdf:operate 'asdf:load-op sys
-	:verbose verbose :version version :proclamations proclamations))
-   ;Scan it, gathering packages as we go.
-    (let*(packages 
-	  (*expression-hook*
-	   (lambda (expr)
-	     (cond
-	       ((and (listp expr) (eql (car expr) 'defpackage))
-		(let ((pkg (find-package (cadr expr))))
-		  (pushnew pkg packages)
-		  (setq *package* pkg)))
-	       (t
-		(funcall expression-hook expr)))))
-	  (recurse-to (when (> recurse-cnt 0)
-			(cdr (assoc 'asdf:compile-op
-				    (asdf:component-depends-on
-				     'asdf:compile-op sys)))))
-	  (*default-pathname-defaults* (pathname "/"))
-	  (pathname 
-	   (format nil "~{~a/~}" (cdr(pathname-directory
-				      (asdf:component-pathname sys)))))
-	  (filenames (cdr (assoc 'asdf:compile-op
-				 (asdf:component-depends-on
-				  'asdf:load-op sys)))))
-				 
-      (dolist (file filenames)
-	(with-open-file (stream (format nil "~D~D.lisp" pathname file)
-				:if-does-not-exist nil)
-	  (when stream
-	    (do ((read nil (read stream nil 'end-of-file)))
-		((eql read 'end-of-file) nil)
-	      (expand read)))))
-    ;Recurse if asked, return packages.
-      (setf (getf *system-packages* (intern (asdf:component-name sys)))
-	    (cons packages ;You can tell different levels apart.
-		  (mapcan
-		   (curry #'scan-system
-		       :load-hook load-hook :recurse-cnt (- recurse-cnt 1))
-		   recurse-to)))))
-  
-  ) ;\(when (find-package :asdf)
+(defun scan-asdf-components (components)
+  (dolist (component components)
+    (case (car component)
+      (:file
+       (scan-file (format nil "~a.lisp" (cadr component))
+		  :expression-hook *expression-hook*))
+      (:module
+       (let ((*default-pathname-defaults*
+	      (pathname (format nil "~a~a/"
+		  (directory-namestring *default-pathname-defaults*)
+		  (cadr component)))))
+	 (scan-asdf-components (getf (cddr component) :components)))))))
 
+(def-scanner asdf::defsystem (system-name &rest info)
+  (setf (access-result 'asdf:defsystem system-name)
+	(make-instance 'track-form :form expr))
+  ;If we know where we are, and are to folow:
+  (when *follow-asdf-systems*
+    (let ((*default-pathname-defaults* 
+	   (if-use (unless *reading-myself*
+		     *load-pathname*)
+		   *default-pathname-defaults*)))
+      (print system-name)
+      (when (asdf:find-system system-name nil)
+	(when :also-load
+	  (asdf:oos 'asdf:load-op system-name))
+     ;We only need to scan the files.
+     ;TODO doesn't work if subcomponents.
+	(scan-asdf-components (getf info :components)))))
+  expr)

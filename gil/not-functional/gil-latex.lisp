@@ -1,3 +1,12 @@
+;;
+;;  Copyright (C) 2010-03-01 Jasper den Ouden.
+;;
+;;  This is free software: you can redistribute it and/or modify
+;;  it under the terms of the GNU Affero General Public License as published
+;;  by the Free Software Foundation, either version 3 of the License, or
+;;  (at your option) any later version.
+;;
+
 (cl:in-package :cl)
 
 (defpackage gil-latex
@@ -12,6 +21,9 @@ TODO equations would be neat to have, and crazy not to have.
 (in-package :gil-latex)
 
 (make-gil-definer :latex def-gil-method def-gil-method*)
+
+(def-gil-method* i-prep (str string) ()
+  (wformat str))
 
 (def-gil-method i-glist (sep t) ((list list))
   (i-glist :txt sep list))

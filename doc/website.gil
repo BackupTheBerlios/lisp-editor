@@ -1,0 +1,180 @@
+
+$(gil-style:register-style
+  "(body ()
+      (color white) (background-color black))
+    (a (nil link)
+      (color \"#00f0ff\") (text-decoration none))
+    (a (nil visited)
+      (color \"#4040ff\") (text-decoration none))
+    (a (nil (link hover))
+      (text-decoration underline))
+    (a (nil (visited hover))
+      (text-decoration underline))")
+
+(section 1 $"Intro" #(Intro)
+  Lisp-ed was originally a project to make a new lisp-editor. However, i
+  didn't work very project-focussed and made a bunch of other stuff, 
+  making the aim more about gui/markup and autodocumentation.
+  (b Currently GIL is the main project.)
+
+  (p It is far from 'polished', for instance, i haven't figured out the best 
+  way to inferfere with the automatic contents page to the left; the
+  regular and packages entries arent separated. Also the autodoc results
+  could use improvement and optional manual entering of extra 
+  documentation. \(Actually the doc-string itself is also manually 
+entered, but it is just good habit to fill those.\))
+  
+  (p Also some would want to see this page black on white. I prefer it this
+     way. It would be nice to be able to add a button to just allow the 
+     choice.)
+
+(section 2 $"GIL" #(General Interface Library/Language)
+  
+  (p I$" " (comment TODO what happens here)
+      was annoyed that autodoc\(see below\) could only output in one 
+     language. I also simply felt that we needn't have separation between 
+     markup, web, and gui, and that Code=data should be 'Code as manifested
+     in function usuage'=data.)
+   
+  (p As such, i made/am making a library that allows one to specify
+     documents/guiworks just with methods and functions.\(Macros might be
+     useful enough to include, but i'll mostly avoid them.\)  The methods
+     are mostly distinguished for purposes of indicating meaning.
+     Objects inputted determine the actual content. For instance, strings
+     represent text. See  (link $"GIL" at 'GIL')  for more.))
+
+(section 2 $"Scanning code" #(Scanning code)
+  Scanning of the code is done in two separate parts:
+  (point-list
+    #(An implementation of an expression-hook, it effectively reimplements
+    CLs macroexpansion for this.)
+    #(A scanner that collects information based on the hook. As it works
+    with an expression hook, and macro function called in any way can be
+    automatically documented, if instructed how to document it.))
+  It can be extended by writing expression-hooks.
+
+  (section 4 $"autodoc-scan" #(Autodocumentation)
+    Packages (package-link $:expression-scan Expression-scan) and
+    (package-link $:expression-hook Expression-hook).))
+    
+(section 2 $"Autodocumentation" #(Autodocumentation)
+  Based on the scan data, so can make documentation from any expression 
+  useage. Being annoyed by LML2, and being able to output only html, 
+  i made GIL. As described above.
+
+  (p The autodocumentation is extensible by writing document methods and 
+     hooks to gather information. Should have better documentation by 
+     default though; no documentation of methods, classes etcetera yet.
+     Also allowing the user to extend documentation aside would be nice.)
+  
+  (section 4 $"autodoc-autodoc" #(Autodocumentation)
+    Package (package-link $:autodoc-gil autodoc-gil).)))
+
+(section 1 $"GIL" #(General Interface Library/Language \(Explanation\))
+  GIL is to depend on creating standard structures defining various 
+  things on which to define methods for the various outputs, trying to get 
+  as close as possible to the intended effect. \(Possibly not very far, 
+  depending on the output type; plaintext output, for instance, isn't 
+  capable of very much\)
+  
+  (p There are two basic methods, (b i-prep) and (b i-glist)
+     Both have the output language as first argument.)
+    
+  (section 3 $"i-prep" #(i-prep \(lang object\))
+    Returns object prepared for use, nothing else.)
+
+  (section 3 $"i-glist" #(i-glist \(lang way list\))
+    Treats listed objects as way prescribes.
+    This is GILs equivalent to tags, except that the tags are replaced by 
+    general objects.)
+  
+  You usually don't use these, directly, there are functions that compose 
+  these for you.
+  
+  (section 2 $"objects" #(Objects)
+    So then the important question is what sort of objects. 
+    Here are some pretty basic ones:
+    (point-list
+     #(Lists are given by the class dot-list \(TODO misnomer\) but can also
+       be obtained via
+       (b :point-list, :alt-list, :numbered-list) etcetera.)
+     #(Sections, similar to that of those Latex. Sections can also be used
+       to make separate pages for websites.)
+     #(Classes and associated functions indicating headers, bold,
+        italic etcetera.)
+     #(Tables)
+     #(Styles \(based on css\))
+     #(Image-file)))
+    
+  See (link $"GIL-use" GIL from user perspective) or 
+   the autodocumentation for more.
+   
+  (section 4 $"gil-autodoc" #(Autodocumentation)
+    Packages (package-link $:gil gil), (package-link $:gil-share),
+    (package-link $:gil-style), (package-link $:gil-info),
+    (package-link $:gil-read), (package-link $:gil-user),
+    (package-link $:gil-html).))
+  
+(section 1 $"GIL-use" #(GIL from user perspective)
+
+  If things get to nested, try 
+  (url-link $"http://lisp-umac.berlios.de/main.html" the denest macro),
+  which removes nestedness. (package-link $:denest \(autodoc\))
+
+(section 2 $"Conventions" #(Conventions)
+  The most important convention is that any function that works on 
+  gil-code accepts that prepared/gone-through glist gil-code as the &rest
+  last arguments.)
+  
+(section 2 $"Notation" #(Notation)
+
+  (p The basic lisp notation is less efficient one would want. Particularly
+     the \\ and \" needed everywhere is cumbersome. I made a parser that 
+     reads s-expressions a little differently, turning parts into strings
+     for you. All statements are still effectively function useage; you can
+     still just use it as lisp. 
+     It seems likely that the alternative notation is more useful if the
+      'code' is more data-like, and that
+     CL notation is more useful when the code is more 'code-like'.)
+  
+  (p It basically works by taking everything directly after '\(' to be
+     a symbol, 
+     and always turning numbers into numbers. Otherwise it is always a 
+     string.
+     '\\' escapes for a symbol, \$ reads a lisp expression as usual, 
+     and #() 
+     makes a statement a unit onto itself; if you want \"a b c d\" to be 
+     read as \"a b\" \"c d\", you'd do \"#(a b) #(c d)\".
+     This is often useful when you are filling the 'object' argument of 
+     a function. specifically it turns into (code \(glist :series ...\)))
+  
+  (p The notation also takes
+     (code \{stuff...\}) as (code \(denest stuff...\)))
+
+  (p Optional closing tags for readability on long s-expressions are still
+      todo.) (comment TODO)
+  
+  (p Note that Lisp, defining functions to do stuff for you is a tool to 
+     help you write.
+      \(Although perhaps i will make other types of tools.\)))
+
+(section 2 $"GIL-fun-use" #(Functions from use-perspective)
+    
+  Firstly, (b don't) use any of the 'i-...' functions, in data-like code
+  these are meant, and if you do, always make the second argument 
+  gil:*lang*, that is how the language is passed.
+  \(Which is later deferred to a
+(url-link $"http://www.gigamonkeys.com/book/variables.html#dynamic-aka-special-variables"
+	   special variable).\)
+
+  TODO further docs.)
+
+(comment TODO (section 2 $"GIL-use-examples" #(Examples)
+  )
+  ))
+  
+(section 1 $"GIL-output" #(GIL output languages)
+  Currently GIL has only html output. Used to have text and latex output, 
+  but broke them making changed.\(To be fixed.\)
+  
+  (p Neat would be to have GUI toolkit 'outputs', like via cl-gtk.))

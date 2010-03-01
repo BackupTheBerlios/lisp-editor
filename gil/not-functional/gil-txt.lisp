@@ -1,3 +1,11 @@
+;;
+;;  Copyright (C) 2010-03-01 Jasper den Ouden.
+;;
+;;  This is free software: you can redistribute it and/or modify
+;;  it under the terms of the GNU Affero General Public License as published
+;;  by the Free Software Foundation, either version 3 of the License, or
+;;  (at your option) any later version.
+;;
 
 (cl:in-package :cl)
 
@@ -6,11 +14,9 @@
   (:documentation "Text output of General Interface Library/Language.
 Goes by symbol :txt
 
-TODO slightly excessive newlining."))
+TODO Totally messed up now.."))
 
 (in-package :gil-txt)
-
-(make-gil-definer :txt def-gil-method def-gil-method*)
 
 (defun is-whitespace (ch)
   (case ch ((#\Newline #\Space #\Tab) t)))
@@ -62,19 +68,22 @@ TODO slightly excessive newlining."))
     (string
      (write-tabbed obj :not-first not-first-tab))))
 
-(def-gil-method i-prep (string string) ()
-  string)
+(defun push-write-list (objects)
+  (mapcar #'push-write objects))
+
+(def-prep (fun function) fun)
+(def-prep (thing t) thing)
 
 ;;-----------------------List-like------------------------------------------
 
-(def-gil-method* i-glist :series ((list list))
-  (mapcar #'push-write list))
+(def-glist* :series objects
+  (push-write-list objects))
 
-(def-gil-method* i-glist :p ((list list))
-  (mapcar #'push-write list)
+(def-glist* :p objects
+  (push-write-list objects)
   (wformat "~2%"))
 
-(def-gil-method* i-glist (dot dot-list) ((list list))
+(def-glist* (dot dot-list) list
   (let (not-first)
     (dolist (el list)
       (if not-first
@@ -86,13 +95,9 @@ TODO slightly excessive newlining."))
 	(push-write el :not-first-tab t))
       (wformat "~%"))))
 
-(def-gil-method i-glist :list ((list list))
+(def-glist (sym symbol) list
   (let ((*tab-depth* (+ *tab-depth* 1)))
-    (i-glist *lang* (mk dot-list :style :disc) list)))
-
-(def-gil-method i-glist :alt-list ((list list))
-  (let ((*tab-depth* (+ *tab-depth* 1)))
-    (i-glist *lang* (mk dot-list :style :square) list)))
+    (i-glist *lang* (mk dot-list :style sym) list)))
 
 (defun numbered-list-raw
     (list &key (n 1) (prep "") long-numbers
@@ -106,74 +111,56 @@ TODO slightly excessive newlining."))
       (wformat "~%")
       (setf- + n 1))))
 
-(def-gil-method* i-glist :numbered-list ((list list))
+(def-glist* :numbered-list list
   (numbered-list-raw list :long-numbers (> (length list) *long-number*)))
 
 ;;--------------------Links; doesn't do actions and notes-------------------
 
-(def-gil-method* i-action (link t) ((str string))
-  (wformat str))
+(def-glist* (link gils::follow-link) objects
+  (push-write-list objects))
 
-(def-gil-method* i-action (link link) (object)
-  object)
+(def-glist* (link link) objects
+  (push-write-list objects))
 
-(def-gil-method* i-note (link link) (object)
-  object)
+(def-glist* (url url-link) objects
+  (push-write-list 
+   (cons (prep (format nil "(~a)" (gils::name url))) objects)))
 
 ;;-------------------Basic modifiers----------------------------------------
 
-(def-gil-method* i-note :bold (object)
+(def-glist* :bold objects
   (wformat "*")
-  (call object)
+  (push-write-list objects)
   (wformat "*"))
-(def-gil-method* i-note :italic (object)
-  (wformat "*")
-  (call object)
-  (wformat "*"))
+(def-glist :italic objects
+  (i-glist *lang* :bold objects))
 
-(def-gil-method* i-note :underlined (object)
+(def-glist* :underlined objects
   (wformat "_")
-  (call object)
+  (push-write-list objects)
   (wformat "_"))
-
-;;-------------------Comments----------------------------------------------
-(def-gil-method* i-note :comment (object))
 
 ;;-------------------Headers------------------------------------------------
 
-(def-gil-method* i-header 1 (object)
-  (wformat "~%--------------------------~%   ")
-  (let ((*cur-char-depth* 3))
-    (call object))
-  (wformat "~%--------------------------~%"))
+(def-glist* (header header) objects
+  (let ((level (slot-value header 'gil::level)))
+    (wformat (case level
+	       (1 "~%--------------------------~%   ")
+	       (2 "~%==== ") (3 "---- ") (4 "-+") (t "")))
+    (let ((*cur-char-depth* (case level (1 3) (2 5) (3 5) (4 3))))
+      (push-write-list objects))
+    (wformat (case level
+	       (1 "~%--------------------------~%")
+	       (2 "====~%") (3 "----~%") (4 "~%") (t "")))))
 
-(def-gil-method* i-header 2 (object)
-  (wformat "~%==== ")
-  (let ((*cur-char-depth* 5))
-    (call object))
-  (wformat " ====~%"))
-
-(def-gil-method* i-header 3 (object)
-  (wformat "---- ")
-  (let ((*cur-char-depth* 5))
-    (call object))
-  (wformat " ----~%"))
-
-(def-gil-method* i-header 4 (object)
-  (wformat "-+ ")
-  (let ((*cur-char-depth* 3))
-    (call object))
-  (wformat "~%"))
-
-;Sections follow from headers.
-(defmethod i-section ((lang (eql :txt))
-		      level name (object string) (paragraphs list))
-  (i-section *lang* level name (lambda () (wformat object)) paragraphs))
+;Section follow from headers.
 
 ;;Image
-(def-gil-method i-prep (image base-image) ()
+(def-glist (image base-image) objects
+  (declare (ignore objects))
   (format nil "<~D>" (string-downcase (symbol-name (type-of image)))))
 
-(def-gil-method i-prep (image file-image) ()
+(def-glist (image file-image) objects
+  (declare (ignore objects))
   (format nil "<~D: ~D>" (string-downcase (symbol-name (type-of image)))
-	                 (file-name image)))
+	                 (slot-value image 'gils::file-name)))
