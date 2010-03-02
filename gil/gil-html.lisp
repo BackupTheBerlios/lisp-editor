@@ -23,8 +23,11 @@ tracked by gil-info."))
 
 (defparameter *default-style-file* "default.css")
 
+(defvar *refer-style* nil)
+(defvar *inline-style* nil)
+
 (defun style (&optional (file *default-style-file*))
-  (wformat "<link rel=\"stylesheet\" type=\"text/css\" href=\"~D\"\
+  (wformat "<link rel=\"stylesheet\" type=\"text/css\" href=\"~a\"\
  />~%"
 	   file))
 
@@ -43,44 +46,24 @@ tracked by gil-info."))
 			 nil)))
 	     string))
 
-(def-call (fun function) (indent) (funcall fun))
-(def-call (str string)
-  (indent)
-  (write-string (if (and gils::*attempt-shorten*
-		         (not gils::*attempt-readable*))
-		  (remove-gratuous-whitespace str)
-		  str)))
-(def-call (num number) (indent) (format t "~a" num))
-(def-call (null null) (declare (ignore null)))
-(def-call anything (error "Not recognized: ~a" anything))
-
-;;Styles. (And associated.)
-
-(defvar *refer-style* nil)
-(defvar *inline-style* nil)
-(def-glist* (style refer-style) list
-  (let ((*refer-style* style))
-    (call-list list)))
-
-(def-glist* (sl gil-style:style-list) list
-  (with-open-file (css *default-style-file* :direction :output
-		   :if-exists :supersede :if-does-not-exist :create)
-    (write-style-css (slot-value sl 'gil-style::list) css)))
+(defmacro surround (with &body body)
+  `(surround-fn ,with (lambda () ,@body)))
 
 ;NOTE: nothing really has accepts-style true; i don't trust it, why does
 ;      class not work on ul, and style does, etcetera.. ><
-(defun surround-fn (with fill &optional accepts-style)
+(defun surround-fn (with fill)
   "Puts xml thingies around, if core also adds style."
-  (let ((style-str      (concatenate 'string
-			  (when *refer-style*
-			    (format nil " class=~a " *refer-style*))
-			  (when *inline-style*
-			    (format nil " style=~a " *inline-style*))))
-	(*refer-style*  nil) (*inline-style* nil))
+  (let ((style-str (concatenate 'string
+		     (when *refer-style*
+		       (format nil " class=\"~a\"" *refer-style*))
+		     (when *inline-style*
+		       (format nil " style=\"~a\"" *inline-style*))))
+	(*refer-style*  nil) ;Turn them off.
+	(*inline-style* nil))
     (cond
-      ((and (not accepts-style) (> (length style-str) 0))
-       (surround-fn (format nil "span ~a" style-str)
-		    (lambda () (surround-fn with fill))))
+;      ((and (not accepts-style) (> (length style-str) 0))
+;       (surround (format nil "span ~a" style-str)
+;	 (surround-fn with fill)))
       (gils::*attempt-readable*
        (indent)
        (wformat "<~a~a>~%" with style-str)
@@ -93,19 +76,46 @@ tracked by gil-info."))
        (funcall fill)
        (wformat "</~a>" (subseq with 0 (position #\Space with)))))))
 
-(defmacro surround (with &body body)
-  `(surround-fn ,with (lambda () ,@body)))
-
 (defmacro def-surrounding-glist* (way with &optional accepts-style)
   (with-gensyms (objects)
     `(def-glist* ,way ,objects
-       (surround-fn ,with (call-list* ,objects) ,accepts-style))))
+       (surround-fn ,with (call-list* ,objects)))))
 
-(def-surrounding-glist* (style inline-style)
-  (format nil "span style=\"~a\""
-	  (with-output-to-string (stream)
-	    (write-prop-val-css
-	     (slot-value style 'gil-style::style) stream))))
+(def-call (fun function) (indent) (funcall fun))
+
+(def-call (str string)
+  (indent)
+  (let ((string (if (and gils::*attempt-shorten*
+		         (not gils::*attempt-readable*))
+		  (remove-gratuous-whitespace str)
+		  str)))
+    (if (or *refer-style* *inline-style*)
+      (surround "span" (write-string string))
+      (write-string string))))
+
+(def-call (num number) (indent) (call (format nil "~a" num)))
+(def-call (null null) (declare (ignore null)))
+(def-call anything (error "Not recognized: ~a" anything))
+
+;;Styles.
+
+(def-glist :style-list list
+  "Style lists go straight to the .css file."
+  (with-open-file (css *default-style-file* :direction :output
+		   :if-exists :supersede :if-does-not-exist :create)
+    (mapcar (lambda (el) (write-line el css)) list)))
+
+(def-glist* (style refer-style) objects
+  (let ((*refer-style* (slot-value style 'refer)))
+    (if (null (cdr objects))
+      (call (car objects)) ;One object; imbed style.
+      (surround "span" (call-list objects)))))
+
+(def-glist (style inline-style) objects
+  (let ((*inline-style* (slot-value style 'style)))
+    (if (null (cdr objects))
+      (call (car objects))
+      (surround "span" (call-list objects)))))
 
 ;;List-like.
 

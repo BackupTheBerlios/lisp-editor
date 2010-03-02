@@ -25,7 +25,7 @@
   (lambda (page)
     (table
      (list (table-el '(:colspan 2 :align :center)
-		     (inline-style "(font-size 250%)" "Lisp-editor")))
+		     (inline-style "font-size:250%" "Lisp-editor")))
      (list (table-el '(:valign :top :width "20%")
 	     sidepane
 	     (gils::hr) "Hosted by" (newline)
@@ -37,10 +37,6 @@
 			 :filename "http://developer.berlios.de/bslogo.php?group_id=0"))))
 	   (table-el '(:valign :top)
 		     page))))) 
-  
-
-;;TODO currently it mixes the contents page.. Figure out how to give them
-;; their respective contents side.
 
 (defun mk-website ()
   "Makes the website. Only paginated stuff will appear as file, rest to\
@@ -79,7 +75,7 @@
       (call(execute "../website.gil")))
     (let ((gils:*handle-page* (side-paned-page
 			       (glist :series site-contents
-				 (inline-style "(color gray)"
+				 (inline-style "color:gray"
 				  (header 4 (u(b "Autodoc:"))))
 				 autodoc-contents))))
       (call autodoc))))
@@ -124,7 +120,7 @@
 
 (autodoc-gil:document :lispbuilder-sdl)
 
-;;cl-fad, however does work.
+;;documenting cl-fad, however does work.
 (let ((*default-pathname-defaults*
        #p"/home/jasper/oproj/cl-fad-0.6.3/"))
   (expr-scan:scan-file "cl-fad.asd"))
@@ -135,3 +131,5 @@
   (let ((gils::*section-page-level* 0)
 	(*lang* :html))
     (call (autodoc-gil:document :cl-fad :pkg))))
+
+;(load "gil/gil-html.lisp")

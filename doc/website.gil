@@ -1,15 +1,10 @@
 
 $(gil-style:register-style
-  "(body ()
-      (color white) (background-color black))
-    (a (nil link)
-      (color \"#00f0ff\") (text-decoration none))
-    (a (nil visited)
-      (color \"#4040ff\") (text-decoration none))
-    (a (nil (link hover))
-      (text-decoration underline))
-    (a (nil (visited hover))
-      (text-decoration underline))")
+  "body{color:white; background-color:black;}
+a:link{color:\#00f0ff; text-decoration:none;}
+a:visited{color:#4040ff}
+a:link:hover{text-decoration:underline}
+a:visited:hover{text-decoration:underline}")
 
 (section 1 $"Intro" #(Intro)
   Lisp-ed was originally a project to make a new lisp-editor. However, i

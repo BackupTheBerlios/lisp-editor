@@ -11,10 +11,11 @@
 
 (defpackage :gil-style
   (:use :common-lisp :generic :gil)
-  (:export register-style refer-style inline-style
-	   *styles* style-list
+  (:export register-style refer-style inline-style style refer
+	   *styles*
 	   write-style-css write-prop-val-css)
-  (:documentation "Style system, mirroring CSS."))
+  (:documentation "Style system, using CSS. (In future might want to\
+ expand on that."))
 
 (in-package :gil-style)
 
@@ -24,63 +25,30 @@
 
 ;TODO *attempt-readable*
 
-(defun write-prop-val-css (code stream)
-  (dolist (pv code)
-    (destructuring-bind (prop val &rest rest) pv
-      (assert (null rest) nil
-	      "property, value, no more. got ~a" rest)
-      (format stream "~a:~a;" prop val))))
-
-(defun write-style-css (code &optional stream)
-  (dolist (el code)
-    (destructuring-bind
-	  (element-type (&optional (name '|nil|) (manners '|nil|))
-			&rest prop-val-pairs) el
-      (format stream "~a" element-type)
-      (unless (string= (string-downcase (symbol-name name)) "nil")
-	(format stream "~a." name))
-      (when (if (listp manners) manners
-		(not(string= (string-downcase (symbol-name manners))
-			     "nil")))
-	(format stream "~{:~a~}"
-		(if (listp manners) manners (list manners))))
-      (format stream "{")
-      (write-prop-val-css prop-val-pairs stream)
-      (format stream "}"))))
-
-(defclass style-list ()
-  ((list :initarg :list :type list)))
-
-(defun read-from-string-case-sensitive (str)
-  (let ((*readtable* (copy-readtable)))
-    (setf (readtable-case *readtable*) :preserve)
-    (read-from-string str)))
-
 ;Styles read with just READ(-FROM-STRING)
-(defun register-style (&rest str)
+(defun register-style (&rest styles)
   "Registers a bunch of styles. Each style goes 
  (element-type (&optional name manners) &rest prop-val-pairs)
  Symbols that 'css would recognize' are done as css."
-  (let ((styles (read-from-string-case-sensitive
-		 (format nil "(~{~a~})" str))))
-    (setf- append *styles* styles) ;Add styles.
-    (glist (make-instance 'style-list :list styles))))
+  (setf- append *styles* styles) ;Add styles.
+  (glist-list :style-list styles))
+
+(defmethod i-glist (lang (way (eql :style-list)) (list list))
+  (declare (ignore lang list)))
 
 ;;Refer to them/have them inline.
 (defclass refer-style ()
-  ((refer-to :initarg :refer-to :type string))
+  ((refer :initarg :refer :type string))
   (:documentation "Refer to from CSS style."))
 
 ;TODO: needs string as argument; problem is that i need it case sensitive.
 (defun refer-style (style &rest objects)
-  (glist-list (mk refer-style :refer-to style) objects))
+  (glist-list (mk refer-style :refer style) objects))
 
 (defclass inline-style ()
   ((style :initarg :style :type list))
   (:documentation "in-line style."))
 
-(defun inline-style (style-code &rest objects)
-  (glist-list (mk inline-style
-		  :style (read-from-string-case-sensitive
-			  (format nil "(~a)" style-code)))
+(defun inline-style (style &rest objects)
+  (glist-list (mk inline-style :style style)
 	      objects))

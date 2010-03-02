@@ -54,24 +54,24 @@ Page ~a changed to page ~a." link-sym
     (setf (gethash link-sym *links*) 
 	  (make-instance 'link-entry :page gils::*cur-page*))))
 
-(def-glist* anything objects
+(def-glist anything objects
   (declare (ignore anything))
   (mapcar #'call objects))
 
-(def-glist* (link gils::link) objects
+(def-glist (link gils::link) objects
   (register-link (gils::name link))
   (mapcar #'call objects))
 
-(def-glist* (link gils::follow-link) objects
+(def-glist (link gils::follow-link) objects
   (declare (ignore link))
 ;  (register-link (gils::name link))
   (mapcar #'call objects))
 
-(def-glist* (url-link gils::url-link) objects
+(def-glist (url-link gils::url-link) objects
   (declare (ignore url-link))
   (mapcar #'call objects))
 
-(def-glist* (section section) list
+(def-glist (section section) list
   (with-slots (gils::level gils::name gils::title) section
     ;TODO in big doodoo, i need title for _different language_
     (push (list gils::level gils::name gils::title 

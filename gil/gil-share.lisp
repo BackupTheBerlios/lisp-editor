@@ -9,7 +9,7 @@
 
 ;;Note messy file.
 
-(cl:in-package :cl)
+(cl:in-package :cl-user)
 
 (defpackage :gil-share
   (:use :gil :common-lisp :generic)
@@ -18,7 +18,7 @@
 	   *cur-char-depth* *line-len* *acceptable-split-ratio*
 	   *long-number*
 	   *handle-page*
-	   p point-list alt-point-list numbered-list
+	   p series point-list alt-point-list numbered-list
 	   dot-list
 	   
 	   b i u comment p-code code
@@ -88,14 +88,16 @@ TODO improve the messyness of the file, split out some stuff."))
 
 ;;Convenience functions.
 (defmacro def-glist-caller (name (&rest args) &body body)
-  "Defines a function that calls i-glist with structure depending on args."
+  "Defines a function that calls i-glist with structure depending only\
+ on arguments."
   (with-gensyms (objects)
     `(defun ,name (,@args &rest ,objects)
        ,@(butlast body)
        (glist-list ,(car(last body)) ,objects))))
 
 ;;---Lists
-(def-glist-caller p () "List of paragraphs. (glist with :p)" :p)
+(def-glist-caller p () "List of paragraphs." :p)
+(def-glist-caller series () "Just chains the objects." :series)
 (def-glist-caller point-list () "List of points." :list)
 (def-glist-caller alt-point-list () 
   "List of alternative style points." :alt-list)

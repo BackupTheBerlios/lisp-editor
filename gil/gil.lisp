@@ -81,7 +81,13 @@ way:
   (warn "~a not defined for ~a" (type-of way) lang))
 
 (defmethod i-glist (lang way things)
-  (error "Argument should be list, is: ~a" things))
+  (assert (and lang (listp things)) nil
+    "~a~a~a." (if lang "" "language not set")
+	      (if (not (or lang (listp things))) " and " "")
+	      (if (listp things) "" 
+		(format nil "last argument must be list, is ~s" things)))
+  (error "Don't know what went wrong.
+~a ~a ~a ~a" lang way things (type-of things)))
 
 ;;Applying
 
