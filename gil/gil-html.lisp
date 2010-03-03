@@ -16,7 +16,7 @@ tracked by gil-info."))
 
 (in-package :gil-html)
 
-(def-glist* (way t) objects
+(def-glist (way t) objects
   (glist-list way (mapcar #'call objects)))
 
 ;;Some utility
@@ -76,9 +76,9 @@ tracked by gil-info."))
        (funcall fill)
        (wformat "</~a>" (subseq with 0 (position #\Space with)))))))
 
-(defmacro def-surrounding-glist* (way with &optional accepts-style)
+(defmacro def-surrounding-glist (way with &optional accepts-style)
   (with-gensyms (objects)
-    `(def-glist* ,way ,objects
+    `(def-glist ,way ,objects
        (surround-fn ,with (call-list* ,objects)))))
 
 (def-call (fun function) (indent) (funcall fun))
@@ -105,7 +105,7 @@ tracked by gil-info."))
 		   :if-exists :supersede :if-does-not-exist :create)
     (mapcar (lambda (el) (write-line el css)) list)))
 
-(def-glist* (style refer-style) objects
+(def-glist (style refer-style) objects
   (let ((*refer-style* (slot-value style 'refer)))
     (if (null (cdr objects))
       (call (car objects)) ;One object; imbed style.
@@ -119,19 +119,19 @@ tracked by gil-info."))
 
 ;;List-like.
 
-(def-surrounding-glist* :p "p")
+(def-surrounding-glist :p "p")
 
-(def-glist* :comment list)
+(def-glist :comment list)
 
-(def-glist* :series list
+(def-glist :series list
   (call-list list))
-(def-glist* :header list
+(def-glist :header list
   (call-list list))
 
-(def-glist* :newline list
+(def-glist :newline list
   (assert (null list) nil "arguments not allowed in newline")
   (wformat "<br\>"))
-(def-glist* :horizontal-ruler list
+(def-glist :horizontal-ruler list
   (assert (null list) nil "arguments not allowed in horizontal-ruler")
   (wformat "<hr\>"))
 
@@ -146,7 +146,7 @@ tracked by gil-info."))
 ;;  lower-greek, lower-latin, lower-roman, upper-alpha, 
 ;;  upper-latin, upper-roman
 
-(def-glist* (sep dot-list) list
+(def-glist (sep dot-list) list
   (unless (null list)
     (let ((style (slot-value sep 'gils::style)))
       (surround (format nil (case style
@@ -197,20 +197,20 @@ tracked by gil-info."))
 	   (error "~a" page)))
       (call-list objects))))
 
-(def-surrounding-glist* (note link)
+(def-surrounding-glist (note link)
     (sanitized-link "a name=\"~a\"" (gils::name note)))
 
-(def-surrounding-glist* (url url-link)
+(def-surrounding-glist (url url-link)
     (format nil "a href=\"~a\"" (gils::name url)))
 
 ;;Basic modifiers.
 
-(def-surrounding-glist* :bold "b")
-(def-surrounding-glist* :italic "i")
-(def-surrounding-glist* :underlined "u")
-(def-surrounding-glist* :code "code")
+(def-surrounding-glist :bold "b")
+(def-surrounding-glist :italic "i")
+(def-surrounding-glist :underlined "u")
+(def-surrounding-glist :code "code")
 ;Oh, yeah, html didnt preserve it here.. Kindah silly.
-(def-glist* :p-code objects
+(def-glist :p-code objects
   (surround "code" ;Don't steal the whitespace.
     (surround "pre"
       (let ((gils::*attempt-shorten* nil)) (call-list objects)))))
@@ -255,7 +255,7 @@ tracked by gil-info."))
   (warn "Html output(at least this version) doesn't know what to do with\
  image type ~D." (type-of image)))
 
-(def-glist* (image file-image) objects
+(def-glist (image file-image) objects
   (declare (ignore objects)) ;TODO make title, include more html features.
   (wformat "<img src=\"~D\" \>" (slot-value image 'gils::file-name)))
 
@@ -263,7 +263,7 @@ tracked by gil-info."))
 
 ;TODO choice between table and divider thingy?
 ;TODO do via table, below.
-(def-glist* (split gils::split) frames
+(def-glist (split gils::split) frames
   (i-glist :check split frames)
   (with-slots (gils::spacing gils::way gils::dir) split
     (labels ((do-frames ()
@@ -292,6 +292,8 @@ tracked by gil-info."))
     (value &optional (data-name (string-downcase (symbol-name value))))
   `(when ,value
      (list-format "~a=~a" ,data-name ,value)))
+
+;;Tables.
 
 (def-call (table-el table-el)
   (assert gils::*in-table* nil "Table elements _must_ be in a table!")
@@ -323,7 +325,7 @@ tracked by gil-info."))
 		(tagdata gils::y-span "rowspan")))
        (call-list gils::contents)))))
 
-(def-glist* (table table) elements
+(def-glist (table table) elements
   (with-slots (gils::border gils::frame gils::rules gils::width
 	       gils::cellpadding gils::cellspacing) table
     (let ((gils::*in-table* t))

@@ -147,7 +147,8 @@ TODO improve the messyness of the file, split out some stuff."))
 (defmethod i-glist (lang (section section) (objects list))
   (with-slots (level name title) section
     (i-glist *lang* :series
-      (cons (i-glist *lang* (mk header :level level) title) objects))))
+      (cons (i-glist *lang* (mk header :level level) title)
+	    objects))))
 
 (defun section (level name title &rest objects)
   "Makes a section. If title NULL, will use name, if name NULL, it is just\

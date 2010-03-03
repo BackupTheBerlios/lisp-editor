@@ -14,7 +14,7 @@
   (:export mk *lang*
 	   cur-def-lang
 	   i-glist i-call
-	   def-glist def-glist* def-call
+	   def-glist def-call
 	   glist glist-list
 	   call call-list call-list*)
   (:documentation
@@ -57,10 +57,6 @@ so they're applicable to multiple implementations."))
 			    `(,wayv (eql ,way)) way)
 			 (,objects list))
        ,@body)))
-
-(defmacro def-glist* (way objects &body body)
-  `(def-glist ,way ,objects
-     ,@body))
 
 (defun glist-list (way things)
   "Lists of various forms.

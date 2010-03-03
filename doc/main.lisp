@@ -118,18 +118,15 @@
        #p"/home/jasper/oproj/lispbuilder-read-only/lispbuilder-sdl/"))
   (expr-scan:scan-file "lispbuilder-sdl.asd"))
 
-(autodoc-gil:document :lispbuilder-sdl)
-
 ;;documenting cl-fad, however does work.
 (let ((*default-pathname-defaults*
        #p"/home/jasper/oproj/cl-fad-0.6.3/"))
   (expr-scan:scan-file "cl-fad.asd"))
 
-(with-open-file (*standard-output* "doc/autodoc/cl-fad.html"
+(with-open-file (*standard-output* "doc/autodoc/cl-fad.txt"
 		 :direction :output :if-does-not-exist :create
 		 :if-exists :supersede)
   (let ((gils::*section-page-level* 0)
-	(*lang* :html))
-    (call (autodoc-gil:document :cl-fad :pkg))))
+	(*lang* :txt))
+    (call (autodoc-gil:document :cl-fad :pkg :level 2))))
 
-;(load "gil/gil-html.lisp")
