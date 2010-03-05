@@ -22,7 +22,7 @@
 ;;"
 (if (< date 10) (format nil "0~a" date) date)
 (if (< month 10) (format nil "0~a" month) month)
-year)))) ;Note: update before 10000
+year)))) ;Note: update before year 10000
 
 (defun update-licenses-in (directory)
   (let ((*default-pathname-defaults*
@@ -38,6 +38,9 @@ year)))) ;Note: update before 10000
 	    (cl-fad:list-directory "."))))
 
 (update-licenses-in "gil/")
+(update-licenses-in "gil/tools/")
+(update-licenses-in "gil/output/")
+
 (update-licenses-in "tools/")
 (update-licenses-in "gtk/")
 (update-licenses-in "log/")

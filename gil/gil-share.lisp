@@ -1,5 +1,5 @@
 ;;
-;;  Copyright (C) 2010-03-01 Jasper den Ouden.
+;;  Copyright (C) 05-03-2010 Jasper den Ouden.
 ;;
 ;;  This is free software: you can redistribute it and/or modify
 ;;  it under the terms of the GNU Affero General Public License as published
@@ -21,12 +21,14 @@
 	   p series point-list alt-point-list numbered-list
 	   dot-list
 	   
-	   b i u comment p-code code
+	   b i u p-code code
 	   url-link link-pos
 	   header section *section-level-modifier*
 	   *link-page-style* link follow-link
 	   *cur-page* 
 	   
+	   notable note comment
+
 	   timestamp
 	   
 	   newline hr
@@ -111,14 +113,28 @@ TODO improve the messyness of the file, split out some stuff."))
 (def-glist-caller numbered-list () "Numbered list." :numbered-list)
 
 (defun newline ()
-  (glist :newline))
+  :newline)
 (defun hr ()
-  (glist :horizontal-ruler))
+  :horizontal-ruler)
 
-;;---Notes
 (def-glist-caller b () "Bold text." :bold)
 (def-glist-caller i () "Italic text." :italic)
 (def-glist-caller u () "Underlined text." :underlined)
+
+(defclass notable ()
+  ((note-obj :initarg :obj :initform nil)))
+(def-glist-caller notable (note-obj)
+  "Makes something notable.(Might turn up in index.)"
+  (mk notable :obj note-obj))
+(defmethod i-glist (lang (notable notable) objects)
+  (declare (ignore lang notable))
+  (call-list objects))
+
+(def-glist-caller note () "Makes something a note, as in something between\
+ parenthesis, _not_ as in notable!" :note)
+(defmethod i-glist (lang (note (eql :note)) objects)
+  (declare (ignore lang))
+  (call "(") (call-list objects) (call ")"))
 
 (def-glist-caller comment () "Comment, hidden." :comment)
 

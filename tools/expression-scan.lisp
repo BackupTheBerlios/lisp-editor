@@ -1,5 +1,5 @@
 ;;
-;;  Copyright (C) 2010-03-01 Jasper den Ouden.
+;;  Copyright (C) 05-03-2010 Jasper den Ouden.
 ;;
 ;;  This is free software: you can redistribute it and/or modify
 ;;  it under the terms of the GNU Affero General Public License as published
@@ -109,8 +109,8 @@ Discontinued scan."
   (funcall expander form env))
 
 ;;Scanning stuff.
-(defun scan-file (stream
-		  &key (*package* *package*)
+(defun scan-file (stream ;This aught to be default, right?
+		  &key (*package* (find-package :cl-user))
 		       (expression-hook #'scan-expression-hook))
   "Scans a file as source code in order to document it."
   (if (or (stringp stream) (pathnamep stream))

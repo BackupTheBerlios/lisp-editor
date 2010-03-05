@@ -1,5 +1,7 @@
 (cl:in-package :gil-user)
 
+(load "gil/tools/contents.lisp")
+(require :more)
 (require :autodoc)
 
 (defun scan-stuff ()
@@ -46,14 +48,12 @@
 	(gils::*attempt-readable* nil)
 	(autodoc-gil::*treat-args* nil)
 	(autodoc-gil::*treat-title* :title-args)
-
 	(gil-info::*links* (make-hash-table))
 	(site-contents
-	 (gil-info:use-contents 
-	  (let ((gil-info::*contents* nil))
-	    (gil-info:gather "../website.gil")
-	    gil-info::*contents*)
-	  :include-upto 1))
+	 (gil-contents:use-contents
+	  (gil-info:gather-contents  "../website.gil")
+	  (gil-contents:c-el-seq
+	   (:level-filter :to 1) :header :link)))
 	(autodoc
 	 (glist-list :series
 	   (mapcar (lambda (pkg)
@@ -65,11 +65,10 @@
 		     :gil-info :gil-read :gil-user
 		     :gil-html))))
 	(autodoc-contents
-	 (gil-info:use-contents
-	  (let ((gil-info::*contents* nil))
-	    (gil-info:gather autodoc)
-	    gil-info::*contents*)
-	  :include-upto 1))
+	 (gil-contents:use-contents
+	  (gil-info:gather-contents autodoc)
+	  (gil-contents:c-el-seq
+	   (:level-filter :to 1) :class-style :nbsp :link)))
 	(*lang* :html))
     (let ((gils:*handle-page* (side-paned-page site-contents)))
       (call(execute "../website.gil")))

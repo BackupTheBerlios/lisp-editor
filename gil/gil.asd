@@ -18,10 +18,17 @@ Probably good idea to use combined with denest."
 	       ;Tool to create GIL code.
 	       (:file "gil-info") ;produce a table of contents.
 	       ;Outputs.
-	       (:file "gil-html")
+	       (:module "output"
+		:serial t
+		:components
+		((:file "gil-html")
+		 (:file "gil-txt")))
                ;User aids.
 	       (:file "gil-user")
 ;(:file "gil-latex")
-	       ;../tools/autodoc.asd other asd
-
+              ;Tools about it. (autodoc considered separate.)
+;               (:module "tools"
+;                :serial t
+;		:components
+;		((:file "contents")))
 	       ))
