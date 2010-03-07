@@ -79,24 +79,26 @@ Page ~a changed to page ~a." link-sym
   (mapcar #'call objects))
 
 (def-glist (section section) list
-  (with-slots (gils::level gils::name gils::title) section
+  (denest
+   (with-slots (gils::level gils::name gils::title) section
     ;TODO in big doodoo, i need title for _different language_
-    (push (list gils::level gils::name gils::title 
-		(when *register-first* (car list)))
-	  *contents*)
-    (cond
-      ((> gils::level gils::*section-page-level*)
-       (register-link gils::name)
-       (call gils::title)
-       (mapcar #'call list))
-      (t ;Produces new page.
-       (let ((gils::*cur-page*; (gils::intern* gils::name))
-	      (if-let path (gethash gils::name gils::*page-path*)
-	        (format nil "~a~a" path gils::name) ;Path specified.
-		gils::name)))
-	 (register-link gils::name)
-	 (call gils::title)
-	 (mapcar #'call list))))))
+     (push (list gils::level gils::name gils::title 
+		 (when *register-first* (car list)))
+	   *contents*))
+   (let ((*cur-pos* gils::name)))
+   (cond
+     ((> gils::level gils::*section-page-level*)
+      (register-link gils::name)
+      (call gils::title)
+      (mapcar #'call list))
+     (t ;Produces new page.
+      (let ((gils::*cur-page*; (gils::intern* gils::name))
+	     (if-let path (gethash gils::name gils::*page-path*)
+	       (format nil "~a~a" path gils::name) ;Path specified.
+	       gils::name)))
+	(register-link gils::name)
+	(call gils::title)
+	(mapcar #'call list))))))
 
 (def-call (table-el table-el)
   (call-list (slot-value table-el 'gils::contents)))
@@ -114,3 +116,24 @@ Page ~a changed to page ~a." link-sym
   "Links a link-name to an (arbitrary)url."
   (setf (gethash (gils::intern* link-name) *links*)
 	(make-instance 'url-entry :url url)))
+
+;;Listing notables.
+(defvar *notables* nil
+  "List of things stated notable.(With link names to them.")
+
+(defclass notable ()
+  ((pos :initarg :pos :type (or string symbol))
+   (objects :initarg :objects :type list)
+   (str :initform "" :type string)))
+
+(defmethod notable-str ((notable notable))
+  (with-slots (str objects) notable
+    (if (= (length str) 0)
+      (let ((*lang* :txt))
+	(setf str (with-output-to-string (*standard-output*)
+		    (call (glist-list :series objects)))))
+      str)))
+
+(def-glist :notable objects
+  (push (mk notable :pos *cur-pos* :objects objects) *notables*)
+  (call-list objects))

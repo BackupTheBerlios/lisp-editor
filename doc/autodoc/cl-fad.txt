@@ -1,0 +1,125 @@
+
+
+--------------------------
+   Package: Cl-fad
+
+--------------------------
+
+
+Uses packages: Cl
+
+==== defun walk-directory(dirname fn directories )
+====
+
+(dirname fn directories )
+
+Recursively applies the function FN to all files within the
+ directory named by the non-wild pathname designator DIRNAME
+ and all of its sub-directories. FN will only be applied to
+ files for which the function TEST returns a true value. If
+ DIRECTORIES is not NIL, FN and TEST are applied to directories
+ as well. If DIRECTORIES is :DEPTH-FIRST, FN will be applied to
+ the directory's contents first. If DIRECTORIES is :BREADTH
+-FIRST and TEST returns NIL, the directory's content will be
+ skipped. IF-DOES-NOT-EXIST must be one of :ERROR or :IGNORE
+ where :ERROR means that an error will be signaled if the
+ directory DIRNAME does not exist.
+
+
+==== defun pathname-as-file(pathspec )
+====
+
+(pathspec )
+
+Converts the non-wild pathname designator PATHSPEC to file
+ form.
+
+
+==== defun pathname-as-directory(pathspec )
+====
+
+(pathspec )
+
+Converts the non-wild pathname designator PATHSPEC to directory
+ form.
+
+
+==== defun list-directory(dirname )
+====
+
+(dirname )
+
+Returns a fresh list of pathnames corresponding to the
+ truenames of all files within the directory named by the non
+-wild pathname designator DIRNAME. The pathnames of sub
+-directories are returned in directory form - see PATHNAME-AS
+-DIRECTORY.
+
+
+==== defun file-exists-p(pathspec )
+====
+
+(pathspec )
+
+Checks whether the file named by the pathname designator
+ PATHSPEC exists and returns its truename if this is the case,
+ NIL otherwise. The truename is returned in `canonical' form,
+ i.e. the truename of a directory is returned as if by PATHNAME
+-AS-DIRECTORY.
+
+
+==== defun directory-pathname-p(pathspec )
+====
+
+(pathspec )
+
+Returns NIL if PATHSPEC (a pathname designator) does not
+ designate a directory, PATHSPEC otherwise. It is irrelevant
+ whether file or directory designated by PATHSPEC does actually
+ exist.
+
+
+==== defun directory-exists-p(pathspec )
+====
+
+(pathspec )
+
+Checks whether the file named by the pathname designator
+ PATHSPEC exists and if it is a directory. Returns its truename
+ if this is the case, NIL otherwise. The truename is returned
+ in directory form as if by PATHNAME-AS-DIRECTORY.
+
+
+==== defun delete-directory-and-files(dirname )
+====
+
+(dirname )
+
+Recursively deletes all files and directories within the
+ directory designated by the non-wild pathname designator
+ DIRNAME including DIRNAME itself. IF-DOES-NOT-EXIST must be
+ one of :ERROR or :IGNORE where :ERROR means that an error will
+ be signaled if the directory DIRNAME does not exist.
+
+
+==== defun copy-stream(from to )
+====
+
+(from to )
+
+Copies into TO (a stream) from FROM (also a stream) until the
+ end of FROM is reached, in blocks of *stream-buffer-size*. The
+ streams should have the same element type. If CHECKP is true,
+ the streams are checked for compatibility of their types.
+
+
+==== defun copy-file(from to overwrite )
+====
+
+(from to overwrite )
+
+Copies the file designated by the non-wild pathname designator
+ FROM to the file designated by the non-wild pathname
+ designator TO. If OVERWRITE is true overwrites the file
+ designtated by TO if it exists.
+

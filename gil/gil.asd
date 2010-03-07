@@ -12,23 +12,26 @@ Probably good idea to use combined with denest."
   :depends-on (:generic :denest)
   :components (;Base stuff.
 	       (:file "gil") ;Base gil defgenerics.
-	       (:file "gil-share") ;Some tools, and variables.
-	       (:file "gil-style")
-	       (:file "gil-read") ;Syntax for data-like use. TODO improve.
+	       (:file "share") ;Some tools, and variables.
+	       (:file "style")
+	       (:file "read") ;Syntax for data-like use. TODO improve.
 	       ;Tool to create GIL code.
-	       (:file "gil-info") ;produce a table of contents.
+	       (:file "info") ;produce a table of contents.
+	       (:file "util")
 	       ;Outputs.
 	       (:module "output"
 		:serial t
 		:components
-		((:file "gil-html")
-		 (:file "gil-txt")))
+		((:file "html")
+		 (:file "txt")
+		 (:file "latex")))
                ;User aids.
-	       (:file "gil-user")
-;(:file "gil-latex")
+	       (:file "user")
               ;Tools about it. (autodoc considered separate.)
-;               (:module "tools"
-;                :serial t
-;		:components
-;		((:file "contents")))
+               (:module "tools" 
+                :serial t
+;TODO damned asd has problems where load has _no indications_..
+	;	:components
+	;	((:file "contents"))
+		)
 	       ))

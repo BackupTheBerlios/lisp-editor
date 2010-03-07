@@ -37,8 +37,6 @@ so they're applicable to multiple implementations."))
 (defvar *lang* nil
   "Current language to convert too.")
 
-(defvar *cur-page* nil)
-
 (defun cur-def-lang (&key (pkg-name (package-name *package*)))
   "Working on current language."
   (assert (string= (subseq pkg-name 0 4) "GIL-") nil
@@ -90,14 +88,15 @@ way:
 (defgeneric i-call (lang thing)
   (:documentation "Write the stuff."))
 
-
 (defmacro def-call (object &body body)
-  (with-gensyms (lang wayv)
+  (with-gensyms (lang obj)
     `(defmethod i-call ((,lang (eql ,(cur-def-lang)))
-			 ,object)
+			,(if (keywordp object)
+			   `(,obj (eql ,object)) object))
        ,@body)))
 
 (defun call (thing)
+  "Does runs i-call with *lang*"
   (i-call *lang* thing))
 
 (defun call-list (list)
@@ -107,3 +106,18 @@ way:
 
 (defmethod i-call ((lang null) thing)
   (error "The language is not set."))
+
+(defmethod i-call (lang (string string))
+  (declare (ignore lang))
+  (write-string string))
+
+(defmethod i-call (lang (num number))
+  (declare (ignore lang))
+  (format t "~a" num))
+
+(defmethod i-call (lang (null null))
+  (declare (ignore lang null)))
+
+(defmethod i-call (lang (fun function))
+  (declare (ignore lang))
+  (funcall fun))

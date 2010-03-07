@@ -13,11 +13,15 @@
   (:use :common-lisp :generic)
   (:export init with-init *entries* add-entry remove-entry
 	   name file keywords links entry-time)
-  (:documentation "Very basic logger. Probably rather inefficient.
+  (:documentation "Very basic logger.
+
+The reason to put data in a single file is because adding it to the 
+separate files might cause it to be more spread out.
+
 You look at the contents directly via *entries*
 slot values links may have qualifiers (link-type ...files..)
 
-Note: this is probably a noobish way of doing it. The filename system is\
+Note: this might be a noobish way of doing it. The filename system is\
  database too, perhaps the extra data should be attached to the files\
  themselves."))
 
@@ -41,7 +45,8 @@ Note: this is probably a noobish way of doing it. The filename system is\
    (keywords :initarg :keywords :type list :accessor keywords)
    (links :initarg :links :type list :accessor links
      :documentation "Links to other entries, by file-name.")
-   (entry-time :initarg :entry-time :type integer :reader entry-time)))
+   (entry-time :initarg :entry-time :type integer :reader entry-time)
+   (data :initarg data :type list :reader data)))
 
 (defun make-entry (file-name &key (entry-name file-name) keywords links
 		                   (entry-time (get-universal-time)))
@@ -50,10 +55,11 @@ Note: this is probably a noobish way of doing it. The filename system is\
     :keywords keywords :links links))
 
 (defun read-entry (stream)
-  (destructuring-bind (entry-name file-name entry-time keywords links) 
+  (destructuring-bind (entry-name file-name entry-time keywords links
+		       &rest data) 
       (read-data-line stream)
     (make-entry file-name :entry-name entry-name :entry-time entry-time
-		:keywords keywords :links links)))
+		:keywords keywords :links links :data data)))
 
 (defun write-entry (entry stream)
   (with-slots (entry-name file-name entry-time keywords links) entry
@@ -152,6 +158,6 @@ Note: this is probably a noobish way of doing it. The filename system is\
 	     *entries*)))
 
 (defun remove-entry (file-name)
-  (setq *entries* 
+  (setq *entries*  ;TODO also remove the file.
 	(remove-if (lambda (entry) (string= (file entry) file-name))
 		   *entries*)))

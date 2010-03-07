@@ -24,7 +24,9 @@ TODO needs to filter out whitespace gil-execute")
   (collecting () (gil-read stream :fn #'collecting :funlike funlike)))
 
 (defun gil-read (stream &key fn (buf-i 0) (digit 0) funlike)
-  (labels ((add-buffer (ch)
+  (labels ((read-ch ()
+	     (read-char stream nil nil))
+	   (add-buffer (ch)
 	     (setf (aref *buffer* buf-i) ch
 		   buf-i (+ buf-i 1))
 	     (when (= buf-i *buffer-len*)
@@ -42,20 +44,30 @@ TODO needs to filter out whitespace gil-execute")
 	       (setf buf-i 0))
 	     (setf digit 0)
 	     (values)))
-    (do ((ch (read-char stream nil nil) (read-char stream nil nil)))
+    (do ((ch (read-ch) (read-ch)))
 	((not ch) (dump-buffer))
       (case ch
 	(#\(
 	 (dump-buffer)
 	 (let ((read (read stream)))
 	   (funcall fn `(,read ,@(gil-read-col stream :funlike t))))
+#|	   (let ((ch (read-ch))) ;TODO debug something wrong with read use.
+	     (when (not ch)
+	       (return-from gil-read (dump-buffer)))
+	     (if (char= ch #\\)
+	       (let ((end-tag (read stream nil nil)))
+		 (assert (eql read end-tag)
+			 nil "You made an end tag, these are required to\
+ match the function name, but didn't. fun-name: ~s, end-tag ~a"
+			 read end-tag))
+	       (unread-char ch stream))))  |#
 	 (setf funlike nil)) ;Otherwise we'll miss whitespace.
 	(#\)
 	 (dump-buffer)
 	 (return))
 	(#\\ ;Escape character.
 	 (setq funlike nil)
-	 (when-let ch (read-char stream nil nil)
+	 (when-let ch (read-ch)
 	   (add-buffer ch)))
 	(#\$ ;Force (nearly)regular lisp.
 	 (dump-buffer)
@@ -63,7 +75,7 @@ TODO needs to filter out whitespace gil-execute")
 	 (unread-char #\Space stream))
 	(#\#
 	 (cond
-	   ((char= #\( (read-char stream))
+	   ((char= #\( (read-ch))
 	    (dump-buffer)
 	    (funcall fn `(gil:glist :series ,@(gil-read-col stream))))
 	   (t

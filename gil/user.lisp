@@ -12,32 +12,25 @@
 (defpackage :gil-user
   (:use :common-lisp :generic :denest
 	:gil :gils :gil-style :gil-read)
-  (:export run-gil handle-page-contents)
+  (:export run-gil side-paned-page-handler)
   (:documentation "Package for the user of gil.."))
 
 (in-package :gil-user)
 
-(defun handle-page-contents
-    (contents &key 
-     (split (mk-split (list 0.2 0.8)))
-     (enlist nil)
-     (before (lambda())) (after (lambda()))
-     number (number-upto (if number 4 0))
-     (include-upto 3) (via :header) replace-names)
-  "Makes page handler like for into gils::*handle-page*, for attaching\
- content listing all the sections to the left. (most arguments are\
- identical to use-contents.)"
+(defun side-paned-page-handler
+    (&key top-pane left-pane
+          (top-pane-args '(:colspan 2))
+          (left-pane-args '(:valign :top :width "20%"))
+          (page-pane-args '(:valign :top)))
+  "Stuff for basic webpage, with banner ontop, summary to the left, and\
+ some stuff above/below that. (default contents treatment is that\
+ contents:use-contents does. (gil-info:gather-contents and 
+gil-contents:use-contents can help make your contents based on sections 
+you used.)"
   (lambda (page)
-    (let ((contents-side
-	   (glist :series
-		  before 
-		  (gil-info:use-contents contents
-		   :number number :number-upto number-upto :number number
-		   :include-upto include-upto :via via
-		   :replace-names replace-names)
-		  after)))
-      (if enlist (glist split (list contents-side page))
-	         (glist split contents-side page)))))
+    (table (when top-pane (list (table-el top-pane-args top-pane)))
+	   (list (table-el left-pane-args left-pane)
+		 (table-el page-pane-args page)))))
 
 (defun run-gil
     (from main-output

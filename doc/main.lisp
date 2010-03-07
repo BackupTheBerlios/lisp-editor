@@ -1,8 +1,8 @@
 (cl:in-package :gil-user)
 
-(load "gil/tools/contents.lisp")
 (require :more)
 (require :autodoc)
+(load "gil/output/latex.lisp")
 
 (defun scan-stuff ()
   (let ((*default-pathname-defaults* 
@@ -24,21 +24,17 @@
   (apply #'autodoc-gil:mention `(defpackage ,pkg ,@objects)))
 
 (defun side-paned-page (sidepane)
-  (lambda (page)
-    (table
-     (list (table-el '(:colspan 2 :align :center)
-		     (inline-style "font-size:250%" "Lisp-editor")))
-     (list (table-el '(:valign :top :width "20%")
-	     sidepane
-	     (gils::hr) "Hosted by" (newline)
+  (gil-user::side-paned-page-handler
+   :top-pane (inline-style "font-size:250%" "Lisp-editor")
+   :top-pane-args '(:colspan 2 :align :center)
+   :left-pane (series sidepane :hr
+		      "Hosted by" (newline)
 ;Note: currently not enough features to do it fully the same as:
 ;<a href="http://developer.berlios.de">
 ;<img src="http://developer.berlios.de/bslogo.php?group_id=0" width="124" height="32" border="0" alt="BerliOS Logo" /></a> 
-	     (url-link "http://developer.berlios.de/"
-		       (glist (mk file-image ;
-			 :filename "http://developer.berlios.de/bslogo.php?group_id=0"))))
-	   (table-el '(:valign :top)
-		     page))))) 
+		      (url-link "http://developer.berlios.de/"
+			(glist (mk file-image ;
+			  :filename "http://developer.berlios.de/bslogo.php?group_id=0"))))))
 
 (defun mk-website ()
   "Makes the website. Only paginated stuff will appear as file, rest to\
@@ -70,6 +66,9 @@
 	  (gil-contents:c-el-seq
 	   (:level-filter :to 1) :class-style :nbsp :link)))
 	(*lang* :html))
+    (with-open-file (stream "default.css" :direction :output
+			    :if-exists :supersede :if-does-not-exist :create)
+      (declare (ignore stream)))
     (let ((gils:*handle-page* (side-paned-page site-contents)))
       (call(execute "../website.gil")))
     (let ((gils:*handle-page* (side-paned-page
@@ -129,3 +128,14 @@
 	(*lang* :txt))
     (call (autodoc-gil:document :cl-fad :pkg :level 2))))
 
+
+(with-open-file (*standard-output* "doc/autodoc/cl-fad.tex"
+		 :direction :output :if-does-not-exist :create
+		 :if-exists :supersede)
+  (let ((gils::*section-page-level* 0)
+	(*lang* :latex))
+    (call (autodoc-gil:document :cl-fad :pkg :level 2))))
+
+
+(let ((*lang* :latex))
+  (call (section 3 "miauw" nil "KAKASAF " "agsgd  fas")))

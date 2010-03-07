@@ -9,6 +9,9 @@
 
 ;;Note messy file.
 
+;;TODO description-environments 
+;; http://latex.computersci.org/Reference/ListEnvironments#toc1
+
 (cl:in-package :cl-user)
 
 (defpackage :gil-share
@@ -21,11 +24,11 @@
 	   p series point-list alt-point-list numbered-list
 	   dot-list
 	   
-	   b i u p-code code
+	   b i u p-code code quotation
 	   url-link link-pos
 	   header section *section-level-modifier*
 	   *link-page-style* link follow-link
-	   *cur-page* 
+	   *cur-page* *cur-pos*
 	   
 	   notable note comment
 
@@ -35,8 +38,7 @@
 	   
 	   wformat
 	   base-image file-image
-	   mk-split
-	   table table-el)
+	   table table-el col-table)
   (:documentation "Highly suggested variables, classes and keywords for\
  GIL. Purpose is to standardize these over implementations.
 NOTE early stage.
@@ -79,11 +81,14 @@ TODO improve the messyness of the file, split out some stuff."))
  followed with regard to page, may try to open new tab or replace old,
  etcetera..")
 
+(defvar *cur-pos* ""
+  "How one would currently link to this position.")
+
 (defvar *timestamp* (get-universal-time))
-(defun timestamp ()
+(defun timestamp (&optional (universal-time *timestamp*))
   (multiple-value-bind
 	(second minute hour date month year day daylight-p zone)
-      (decode-universal-time *timestamp*)
+      (decode-universal-time universal-time)
     (declare (ignore date daylight-p zone))
     (format nil "~D:~D:~D ~D-~D-~D" 
 	    hour minute second day month year)))
@@ -103,6 +108,14 @@ TODO improve the messyness of the file, split out some stuff."))
 (def-glist-caller point-list () "List of points." :list)
 (def-glist-caller alt-point-list () 
   "List of alternative style points." :alt-list)
+(def-glist-caller description-list ()
+  "List of described stuff" :descriptions)
+
+(defmacro def-glist-ignore (way)
+  "Ignore something, but not the objects."
+  `(defmethod i-glist (lang (way ,way) (objects list))
+     (declare (ignore lang way))
+     (call-list objects)))
 
 (defclass dot-list ()
   ((style :initarg :style))
@@ -121,14 +134,13 @@ TODO improve the messyness of the file, split out some stuff."))
 (def-glist-caller i () "Italic text." :italic)
 (def-glist-caller u () "Underlined text." :underlined)
 
-(defclass notable ()
-  ((note-obj :initarg :obj :initform nil)))
-(def-glist-caller notable (note-obj)
+(defvar *make-notable-pos* nil
+  "Whether to make things noted notable positions to link to.")
+
+(def-glist-caller notable ()
   "Makes something notable.(Might turn up in index.)"
-  (mk notable :obj note-obj))
-(defmethod i-glist (lang (notable notable) objects)
-  (declare (ignore lang notable))
-  (call-list objects))
+  :notable)
+(def-glist-ignore (eql :notable))
 
 (def-glist-caller note () "Makes something a note, as in something between\
  parenthesis, _not_ as in notable!" :note)
@@ -140,9 +152,10 @@ TODO improve the messyness of the file, split out some stuff."))
 
 (defmethod i-glist (lang (way (eql :comment)) (list list))
   (declare (ignore lang way list))
-  (lambda ()))
+  ) ;This also ignores the objects.
 
 (def-glist-caller code () "Note that it is code." :code)
+(def-glist-caller quotation () "Quotation" :quotation)
 (def-glist-caller p-code () "Note that it is code in paragraph." :p-code)
 
 ;;---Sections and headers
@@ -163,8 +176,7 @@ TODO improve the messyness of the file, split out some stuff."))
 (defmethod i-glist (lang (section section) (objects list))
   (with-slots (level name title) section
     (i-glist *lang* :series
-      (cons (i-glist *lang* (mk header :level level) title)
-	    objects))))
+      (cons (header level title) objects))))
 
 (defun section (level name title &rest objects)
   "Makes a section. If title NULL, will use name, if name NULL, it is just\
@@ -181,6 +193,8 @@ TODO improve the messyness of the file, split out some stuff."))
 (defclass link ()
   ((name :initarg :name :accessor name :type symbol))
   (:documentation "Noting a position."))
+
+(def-glist-ignore link)
 
 (defclass follow-link (link) () (:documentation "Go to noted position."))
 
@@ -199,6 +213,8 @@ TODO improve the messyness of the file, split out some stuff."))
 (defclass url-link ()
   ((name :initform "" :initarg :name :type string :reader name))
   (:documentation "Link to url."))
+
+(def-glist-ignore url-link)
 
 (defun url-link (name &rest objects)
   "Link to the outside with url. Avoid linking inside via url!"
@@ -229,28 +245,6 @@ TODO improve the messyness of the file, split out some stuff."))
   (:documentation "Images named by file."))
 
 ;;Separation in parts.
-
-(defclass split ()
-  ((spacing :initarg :spacing :initform nil :type list)
-   (way :initarg :way
-	:initform :relative :type (or (eql :relative)
-				      (eql :absolute)))
-   (dir :initarg :dir :initform :v :type (or (eql :v) (eql :h))))
-  (:documentation "Splits the whole thing into separate parts.\
- Not to be used for tables.
-TODO do tables, think about whether split makes sense as is.."))
-
-(defun mk-split (splits &key (dir :v) (way :relative))
-  "Makes a split screen for input into glist."
-  (make-instance 'split :spacing splits :dir dir :way way))
-
-(defmethod i-glist ((lang (eql :check)) (split split) (frames list))
-  (with-slots (spacing way) split
-    (assert (= (length frames) (+ (length spacing)
-				  (if (eql gils::way :absolute) 1 0)))
-	    nil "There must be a start of each frame~s"
-	    (if (eql gils::way :absolute)
-		" and one for the ending when absolute." "."))))
 
 (defclass table ()
   ((cellpadding :initarg :cellpadding :initform nil)
@@ -288,7 +282,48 @@ TODO do tables, think about whether split makes sense as is.."))
       :x-size x-size :y-size y-size
       :x-align x-align :y-align y-align
       :x-span x-span :y-span y-span :contents contents)))
-    
+ 
 (defmethod i-glist (lang (table-el table-el) things)
   (declare (ignore lang things))
   (error "Table elements are to be caught with CALL."))
+
+(defclass col-table (table)
+  ((cols :initform :cols :type list))
+  (:documentation "Column table, things about the elements is specified\
+ per-column.(Although table-el can still override."O))
+
+(defun col-table (cols &rest list)
+  "Column-table, elements specified per-colomn, table-el can still\
+ override. Cols is keyword arguments for making an table-el"
+  (glist (mk col-table :cols cols)	 
+	 list))
+
+;Default behavior of col-table via regular table.
+(defmethod i-glist (lang (table col-table) (list list))
+  (declare (ignore lang))
+  (let ((cols (slot-value table 'cols)))
+    (call (glist-list (change-class table 'table)
+	    (mapcar
+	     (lambda (el col)
+	       (mapcar (lambda (s-el)
+			 (typecase s-el
+			   (table-el ;Overriding
+			    s-el)
+			   (t ;Make one based on column.
+			    (glist
+			     (apply #'make-instance `(table-el ,@col))
+			     s-el))))
+		       el))
+	     list cols)))))
+
+;;Calls not accepted.
+(defmethod i-call (lang (sym (eql :tableofcontents)))
+  (declare (ignore lang))
+  (error "Object :tableofcontents does not exist, you looking for\
+ :table-of-contents ?(coming from latex?)"))
+
+;;Need it read with *lang* :info and result in *contents* !
+;(defmethod i-call (lang (sym (eql :table-of-contents)))
+;  (declare (ignore lang))
+;  (call(gil-contents:use-contents gil-info::*contents*)))
+
