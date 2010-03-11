@@ -10,7 +10,9 @@
 (cl:in-package :cl)
 
 (defpackage gil-latex
-  (:use :common-lisp :generic :gil :denest :gil-share :gil-util)
+  (:use :common-lisp :generic :denest
+	:gil-output-util
+	:gil :gil-vars :gil-share :gil-style)
   (:documentation "Latex output of General Interface Library/Language.
 Goes by symbol :latex
 
@@ -68,7 +70,7 @@ TODO equations would be neat to have, and crazy not to have.
 ;;Currently no special call. Could use gil-utils writing functions and
 ;; make it neat. (It should keep off the latex stuff, though.
 
-(def-glist (dot dot-list) list
+(def-glist (dot lister) list
   (surround-be "itemize"
     (dolist (el list) ;TODO more of them.
       (format t "~%\\item~D " (case (slot-value dot 'gils::style)

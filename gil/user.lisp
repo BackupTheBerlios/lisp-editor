@@ -1,3 +1,4 @@
+
 ;;
 ;;  Copyright (C) 05-03-2010 Jasper den Ouden.
 ;;
@@ -11,7 +12,7 @@
 
 (defpackage :gil-user
   (:use :common-lisp :generic :denest
-	:gil :gils :gil-style :gil-read)
+	:gil :gil-vars :gil-share :gil-style :gil-read)
   (:export run-gil side-paned-page-handler)
   (:documentation "Package for the user of gil.."))
 
@@ -54,5 +55,5 @@ you used.)"
        (gil-info:gather from))
      (values
       (funcall
-	(funcall gils::*handle-page* (execute from)))
+	(funcall *handle-page* (execute from)))
       saved-links saved-contents))))

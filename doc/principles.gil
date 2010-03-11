@@ -1,0 +1,146 @@
+
+
+$(gil-style:register-style
+ ".center{text-align:center}")
+
+$(progn
+  (defun principle (&rest objects)
+    (refer-style "center" (p(glist-list :bold objects))))
+  "")
+
+
+
+  It occured to me that i need to state the core principles, or guiding 
+  methaphors, to try and get a community developing around this project, 
+  and convince people of the merit of the project.
+  (note I got this idea from reading about a imaginary os,
+ (url-link $"http://bywicket.com/users/mikel/weblog/fbc2a/Closos.html" 
+   closos), but that is a different topic.)
+
+(section 2 $"Core principles" $nil
+  
+ (p The first and most general principle is:)
+
+ (principle 'code as function useage'=data
+  (link $"principle-note-1" *))
+  (comment a function specifically for that might be useful)
+ 
+ (p I can't say i disallow macros completely, but they may only be 
+    prettification of a function with lambda forms into it.)
+
+ (p Now GIL stands for Graphical Interface Library\(/Language\), and 
+    aspiring to do be able to output markup/gui to the limit of the 
+    medium. So we need a principle that relates to that:)
+ 
+ (principle A document is composed of objects, we need to specify what 
+            their meaning is)
+
+ (section 3 $"Document creation time" $nil
+   At document creation time the different elements are put together 
+   using:
+   
+   (section 4 $"glist-list" $nil
+   glist-list is the function that combines these objects;
+
+   (p-code $"(defun glist-list (object elements)
+  (lambda ()
+    (i-glist *lang* object elements)
+    (values))")
+  
+  All functions to aid in creating documentation must call glist-list 
+  eventually. Explaining the code:
+
+  (point-list
+    #((code *lang*) is the current output language, for instance if
+ :html it will produce html output. When the (b lambda) is called (b not) 
+  when the i-glist is called- that is how special variables work, they 
+  'sneak' in the variable for you, otherwise i would have to 
+  cumbersomely do (code $"(lambda (lang) ..)") and put the (code lang) 
+  argument in (i everywhere).)
+    #(This is also the reason for (code lambda), it cause it to be useable
+      as object of the document, still depending on special variables like 
+      the (code *lang*)uage.)
+    #((code object) is the object which determines what sort of element it 
+      is in the document, and how (code elements) is to be treated.
+      Simple objects are keywords like :p \(paragraph\), :bold\(bolden text\)
+      All the objects are to have a clear purpose.)
+    #((code $"(values)") is returned because there no intention to do 
+      anything with the output value, so we output no value.))
+  
+  (p (b(code i-glist)) is a method, being a method allows it to 
+  distinguish 
+  between the different objects, but (b not) the elements, which must 
+  always be a list. One could of course have done it 
+  equivalently with a hash-table using (code type-of), but i choose to do 
+  it this way.)))
+
+ (section 3 $"out-from objects" #(Output time)
+   Output of objects is done via:
+
+   (p-code $"(defun call (element)
+  (i-call *lang* element))")
+
+  (p Here we again use a method to distinguish between the language and 
+     elements. If element is a function, it should always call it, if it is
+     NULL, it should always ignore it, 
+     other things are dependent on context. For instance a 
+     string should probably be written, but in html you can just write it 
+     as-is and let html determining the newline whereas in plaintext to
+     output takes care of it.)
+  
+  (p Importantly, call is (b never) used by the user in 
+     document-creation time.(note infact, now i think of it, i should
+     arrange the packages to not have call available at that time.))
+
+  (p Note that also aim for gui means that output is not necessarily to a 
+     file, it could also produce a widget or such.))
+ 
+ (section 3 $"Use of special variables" $nil
+   Before both creating documents and outputting them you might want to set
+   special variables, notably, for instance, (mention+ $'*lang*),
+   but also other special variables that might be used in both 
+   document creation and output. The nature of special variables allow for 
+   a lot here. A few examples:
+
+   (section 4 $"output-special-var" 
+        #(Example of special variable used in output-time)
+   (p For an instance of a special variable for output time, there is 
+      (mention+ $'*handle-page*). This is a hook on page creation, you 
+      have to 
+      set it to a function that takes a page, and outputs something done 
+      with the page, for instance, for numbering the pages set it to:)
+
+   (p-code $"(let ((page-number 0))
+  (lambda (page)
+     (setq page-number (+ page-number 1))
+     (series
+      \"Page-number: \" page-number
+      :hr ;Horizontal ruler
+      page)))")
+   
+   (p Now, if an output makes separate pages, it will call that function 
+      with it first. Of course, this might depend on settings, for instance
+      Latex output might use the ability of latex to do it itself, and not 
+      paginate.)
+
+   (p Another example of input for this is 
+      (mention+ $'side-paned-page-handler), which allows you to add a pane
+      on top and to the left. This is used for this website.
+      However perhaps this function should be specific to this website, it
+      is a trivial combination of elements, providing too many functions
+      that compose stuff from them might prevent users from learning to 
+      compose themselves.))
+
+   (section 4 $"creation-special-var"
+         #(Examples of a special variables used in creation-time.)
+     Simple instances are the special variables specifying how to 
+     autodocument, autodoc-gil, like
+    (mention+ $'autodoc-gil:*treat-title*)\(how to treat title part of documentation of things\),
+    (mention+ $'autodoc-gil:*treat-dep*)\(how to document dependencies of things\), the other 
+    *treat..*s, and (mention+ $'autodoc-gil:*mentionable-dependency*) which determines when a 
+    dependency is water under the bridge, or something to be noted.))
+  
+ (link-pos $"principle-note-1" (b *): Admittedly this deserves a whole essay 
+   on its own. It isn't new at all either, you can search code=data.
+  (note maybe the 'as functions' part but doubt it.)))
+

@@ -10,7 +10,9 @@
 (cl:in-package :cl-user)
 
 (defpackage gil-html
-  (:use :common-lisp :generic :denest :gil-util :gil :gil-share :gil-style)
+  (:use :common-lisp :generic :denest 
+	:gil-output-util
+	:gil :gil-share :gil-style :gil-vars)
   (:documentation "Gil->html, not that the files linked internally are all 
 tracked by gil-info."))
 
@@ -68,7 +70,7 @@ tracked by gil-info."))
 (defmacro def-surrounding-glist (way with &optional accepts-style)
   (with-gensyms (objects)
     `(def-glist ,way ,objects
-       (surround-fn ,with (call-list* ,objects)))))
+       (surround ,with (call-list ,objects)))))
 
 (def-call (fun function) (may-indent) (funcall fun))
 (def-call (null null) (declare (ignore null)))
@@ -132,6 +134,8 @@ tracked by gil-info."))
   (call-list list))
 
 (def-glist :comment list)
+(def-glist :note objects
+  (wformat "(") (call-list objects) (wformat ")"))
 
 (def-glist :series list
   (call-list list))
@@ -140,7 +144,7 @@ tracked by gil-info."))
 
 (def-glist (style symbol) list
   (unless (null list)
-    (call(glist-list (mk dot-list :style style) list))))
+    (call(glist-list (mk lister :style style) list))))
 
 ;;Lister here recognizes for styles (corresponding CSS.):
 ;;  none, circle, disc, square
@@ -149,7 +153,7 @@ tracked by gil-info."))
 ;;  lower-greek, lower-latin, lower-roman, upper-alpha, 
 ;;  upper-latin, upper-roman
 
-(def-glist (sep dot-list) list
+(def-glist (sep lister) list
   (unless (null list)
     (let ((style (slot-value sep 'gils::style)))
       (surround (format nil (case style
@@ -189,14 +193,12 @@ tracked by gil-info."))
 	(typecase page
 	  (gil-info::link-entry ;TODO recognize current page.
 	   (let ((page (slot-value page 'gil-info::page)))
-	     (cond
+	     (cond ;;NOTE _nasty_ if bugged!!!
 	       ((string= *cur-page* page)
 		(sanitized-link "a href=\"#~a\"" name))
-	       ((string= *cur-page* "")
-		(sanitized-link "a href=\"~a.html#~a\"" page name))
-	       (t
-		(sanitized-link "a href=\"~a~a.html#~a\""
-		  *default-pathname-defaults* page name)))))
+	       (t;(string= *cur-page* "")
+		(warn "~s ~s" *cur-page* page)
+		(sanitized-link "a href=\"~a.html#~a\"" page name)))))
 	  (gil-info::url-entry
 	   (sanitized-link "a href=\"~a\""
 			   (slot-value page 'gil-info::url)))

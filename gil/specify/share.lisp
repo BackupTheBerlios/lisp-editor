@@ -9,89 +9,29 @@
 
 ;;Note messy file.
 
-;;TODO description-environments 
-;; http://latex.computersci.org/Reference/ListEnvironments#toc1
-
 (cl:in-package :cl-user)
 
 (defpackage :gil-share
-  (:use :gil :common-lisp :generic)
+  (:use :gil :gil-vars :common-lisp :generic)
   (:nicknames :gils)
-  (:export *indent-depth* *indent-step* *list-tab-cnt*
-	   *cur-char-depth* *line-len* *acceptable-split-ratio*
-	   *long-number*
-	   *handle-page*
-	   p series point-list alt-point-list numbered-list
-	   dot-list
-	   
-	   b i u p-code code quotation
-	   url-link link-pos
-	   header section *section-level-modifier*
-	   *link-page-style* link follow-link
-	   *cur-page* *cur-pos*
-	   
-	   notable note comment
+  (:export p series
 
-	   timestamp
+	   b i u p-code code quotation
+	   notable note comment
 	   
-	   newline hr
+	   url-link link-pos
 	   
-	   wformat
+	   lister point-list alt-point-list numbered-list
+	   
+	   header section
+	   link follow-link
+	   
 	   base-image file-image
 	   table table-el col-table)
-  (:documentation "Highly suggested variables, classes and keywords for\
- GIL. Purpose is to standardize these over implementations.
-NOTE early stage.
-TODO improve the messyness of the file, split out some stuff."))
+  (:documentation "Various specifying objects and directly attached\
+ functions to help use them."))
 
 (in-package :gil-share)
-
-(defun intern* (x &optional (pkg (find-package :gil-share)))
-  (if (stringp x) (intern x pkg) x))
-
-(defvar *indent-depth* 0
-  "Current tab depth.")
-(defvar *indent-step* 3
-  "Step in 'spaces' for indentation.")
-(defvar *line-len* 80
-  "Maximum line length.")
-(defvar *cur-char-depth* 0
-  "Current character depth.")
-(defvar *acceptable-line-split-ratio* 0.8
-  "If limiting line length, the fraction to split that is still\
- acceptable. TODO more apt name")
-
-(defvar *attempt-readable* t
-  "Whether the output/implementation should try produce human-readable\
- results.")
-(defvar *attempt-shorten* t
-  "Whether to try make it as short as possible.")
-
-(defvar *list-tab-cnt* 1 "Number of tabs listers make.")
-
-(defvar *page-path* (make-hash-table)
-  "Hash table with page names that want an alternate path.\
- (only do it for a reason.)")
-(defvar *handle-page* #'identity
-  "Things that have to be done around a page.")
-
-(defvar *cur-page* ""
-  "Current page.")
-(defvar *link-page-style* nil "Way the link is\
- followed with regard to page, may try to open new tab or replace old,
- etcetera..")
-
-(defvar *cur-pos* ""
-  "How one would currently link to this position.")
-
-(defvar *timestamp* (get-universal-time))
-(defun timestamp (&optional (universal-time *timestamp*))
-  (multiple-value-bind
-	(second minute hour date month year day daylight-p zone)
-      (decode-universal-time universal-time)
-    (declare (ignore date daylight-p zone))
-    (format nil "~D:~D:~D ~D-~D-~D" 
-	    hour minute second day month year)))
 
 ;;Convenience functions.
 (defmacro def-glist-caller (name (&rest args) &body body)
@@ -112,30 +52,24 @@ TODO improve the messyness of the file, split out some stuff."))
   "List of described stuff" :descriptions)
 
 (defmacro def-glist-ignore (way)
-  "Ignore something, but not the objects."
+  "Default behavior to ignore something, but not the objects."
   `(defmethod i-glist (lang (way ,way) (objects list))
      (declare (ignore lang way))
      (call-list objects)))
 
-(defclass dot-list ()
+(defclass lister ()
   ((style :initarg :style))
   (:documentation "Dots being represented as some text."))
 
-(defvar *long-number* 99 "When a number is considered long.")
-
 (def-glist-caller numbered-list () "Numbered list." :numbered-list)
-
-(defun newline ()
-  :newline)
-(defun hr ()
-  :horizontal-ruler)
 
 (def-glist-caller b () "Bold text." :bold)
 (def-glist-caller i () "Italic text." :italic)
 (def-glist-caller u () "Underlined text." :underlined)
 
 (defvar *make-notable-pos* nil
-  "Whether to make things noted notable positions to link to.")
+  "Whether to make things noted notable positions to link to.
+TODO implement.")
 
 (def-glist-caller notable ()
   "Makes something notable.(Might turn up in index.)"
@@ -160,10 +94,10 @@ TODO improve the messyness of the file, split out some stuff."))
 
 ;;---Sections and headers
 
-(defvar *section-level-modifier* 0)
-
 (defclass header ()
-  ((level :initarg :level :initform 0 :type fixnum)))
+  ((level :initarg :level :initform 0 :type fixnum))
+  (:documentation
+   "Title of something, but without any sort other effect."))
 
 (defun header (level &rest objects)
   "A title of a paragraph/other."
@@ -171,7 +105,10 @@ TODO improve the messyness of the file, split out some stuff."))
 
 (defclass section (header)
   ((name :initarg :name)
-   (title :initarg :title)))
+   (title :initarg :title))
+  (:documentation
+   "Sections are titled parts, that might be paginated separately based on\
+ their level."))
 
 (defmethod i-glist (lang (section section) (objects list))
   (with-slots (level name title) section
@@ -188,11 +125,10 @@ TODO improve the messyness of the file, split out some stuff."))
     (glist-list :series (cons (header level title) objects))))
 
 ;;Some page-stuff
-(defvar *section-page-level* 1)
 
 (defclass link ()
   ((name :initarg :name :accessor name :type symbol))
-  (:documentation "Noting a position."))
+  (:documentation "Denote this position."))
 
 (def-glist-ignore link)
 
@@ -200,19 +136,19 @@ TODO improve the messyness of the file, split out some stuff."))
 
 (defun link (link-name &rest objects)
   "Follow-link."
-  (glist-list (mk follow-link :name (intern* link-name))
+  (glist-list (mk follow-link :name (intern* link-name :gil-share))
 	      (if-use objects (list (format nil "~a" link-name)))))
 
 ;;And link-positions; annotations that links can go there by some name.
 (defun link-pos (link-name &rest objects)
   "Adds a notation that links can go here."
-  (glist-list (mk link :name (intern* link-name (find-package :gils)))
+  (glist-list (mk link :name (intern* link-name :gils-share))
 	      (if-use objects
 		      (list (format nil "~a" link-name)))))
 
 (defclass url-link ()
   ((name :initform "" :initarg :name :type string :reader name))
-  (:documentation "Link to url."))
+  (:documentation "Link to (presumably outside) url."))
 
 (def-glist-ignore url-link)
 
@@ -224,15 +160,6 @@ TODO improve the messyness of the file, split out some stuff."))
 
 ;;Some declaims.
 (declaim (inline p b i u link link-pos))
-
-;;Function to help implement.
-(defmacro wformat (str &rest args)
-  "Format writer."
-  `(progn
-     (when (and (= *cur-char-depth* 0) *attempt-readable*)
-       (dotimes (k *indent-depth*)
-	 (write-char #\Space)))
-     (format *standard-output* ,str ,@args)))
 
 ;;Images.
 
@@ -326,4 +253,3 @@ TODO improve the messyness of the file, split out some stuff."))
 ;(defmethod i-call (lang (sym (eql :table-of-contents)))
 ;  (declare (ignore lang))
 ;  (call(gil-contents:use-contents gil-info::*contents*)))
-

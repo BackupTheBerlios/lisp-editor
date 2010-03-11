@@ -1,0 +1,73 @@
+  
+  (p There are two basic methods, (b (code i-call)) which turns objects 
+     into output and (b (code i-glist)) which does the same given an 
+     object and a list of other objects. These two are essentially the
+     methaphor that ties things together.)
+
+  (p Composed functions are turned into output depending on 
+     what sort of output you want, and as close as possible for a desired
+     outputs.\(Not all outputs are as capable.\))
+  
+  (p You need two, because one; $(mention+ 'gil::i-glist); needs 
+     to be
+     wrapped in a  lambda to delay execution; otherwise it would be tricky 
+     to get 
+     things in order. And the other; $(mention+ 'gils::i-call); is there
+     because 
+     there is a distinction between objects, and 'environments' containing
+     objects. So $(mention+ 'gils::i-call "i-call") applied on functions will funcall it, that is what 
+     that kind of object does. For other objects, it depends on
+      $(mention+ '*lang*).)
+    
+  (p You don't use these directly, these are called by 
+  $(mention+ 'glist) and $(mention+ 'glist-list), which wrap it in a 
+  lambda. $(mention+ 'i-call) is called by $(mention+ 'call), which doesn't 
+  wrap in in a function. It funcalls its input if it is a function,
+  and must be called in a case where $(mention+ '*lang*) is set. 
+  Unless you're developing an output $(mention+ 'call) is only used when 
+  you actually want some output.)
+
+  (p Of course there are lots of functions using $(mention+ 'glist-list) 
+     and $(mention+ 'glist) and inputting objects into them to help you 
+     actually write \(programs that make\) documents.)
+
+  (section 3 $"i-glist" #(i-glist \(lang way list\))
+    Makes a interface/markup as close as possible in the output language as
+    described in the 'way'. lang is the language, it is filled with 
+    $(mention+ '*lang*) by the way i-glist is always used;
+     $(mention+ 'glist) or $(mention+ 'glist-list).
+    
+    (p This is also GILs equivalent to tags, except that the tags are 
+       replaced by general objects.))
+
+  (section 3 $"i-call" #(i-prep \(lang object\))
+    Makes interface/markup as close as possible to the language.
+    
+    (p For one, it is to funcall functions directly, but also for use as 
+       similar role as html entities, although you could make these based 
+       on a list of arguments as well.(note but those are (b meant) to be 
+       in $(mention+ 'glist)))
+    (p Again, lang is filled with $(mention+ '*lang*).))
+  
+  (section 2 $"objects" #(Objects)
+    
+    So we have established that we are using those two generic functions 
+    and defining them for various $(mention+ '*lang*) arguments in order to
+    as closely match behavior assigned to the various objects. What objects
+    are there and what behaviors are there to be assigned to them?
+    
+    (p TODO expand section, make clear sort of objects.)
+    
+    So then the important question is what sort of objects. 
+    Here are some pretty basic ones:
+    (point-list
+     #(Lists are given by the class dot-list \(TODO misnomer\) but can also
+       be obtained via
+       (b :point-list, :alt-list, :numbered-list) etcetera.)
+     #(Sections, similar to that of those Latex. Sections can also be used
+       to make separate pages for websites.)
+     #(Classes and associated functions indicating headers, bold,
+        italic etcetera.)
+     #(Tables)
+     #(Styles \(based on css\))
+     #(Image-file)))

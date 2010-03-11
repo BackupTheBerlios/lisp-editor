@@ -1,8 +1,8 @@
 
 $(gil-style:register-style
-  "body{color:white; background-color:black;}
-a:link{color:\#00f0ff; text-decoration:none;}
-a:visited{color:#4040ff}
+  "body{color:white;background-color:black;}
+a:link{color:\#00f0ff;text-decoration:none;}
+a:visited{color:#70a0ff;text-decoration:none;}
 a:link:hover{text-decoration:underline}
 a:visited:hover{text-decoration:underline}")
 
@@ -60,56 +60,26 @@ entered, but it is just good habit to fill those.\))
   (p The autodocumentation is extensible by writing document methods and 
      hooks to gather information. Should have better documentation by 
      default though; no documentation of methods, classes etcetera yet.
-     Also allowing the user to extend documentation aside would be nice.)
+     Also allowing the user to add extra information in
+     documentation aside would be nice.)
+
+  (p It is also very integratable into .gil files and such, onw can just
+     do $(mention+ 'autodoc-gil:mention
+          (code "(autodoc-gil:mention type name &rest optionally-further-text)"))
+     to mention a statement and it should link it, (b if) it is scanned and
+     has a appropriate 
+     $(mention+ 'autodoc-gil:document)!
+     You don't have to also use (code autodoc-gil:) if that is used in the
+     package you are reading with. (note See (link $"Todo") for what is 
+     still missing.))
   
   (section 4 $"autodoc-autodoc" #(Autodocumentation)
     Package (package-link $:autodoc-gil autodoc-gil).)))
 
 (section 1 $"GIL" #(General Interface Library/Language \(Explanation\))
-  GIL is to depend on creating standard structures defining various 
-  things on which to define methods for the various outputs, trying to get 
-  as close as possible to the intended effect. \(Possibly not very far, 
-  depending on the output type; plaintext output, for instance, isn't 
-  capable of very much\)
   
-  (p There are two basic methods, (b (code i-call)) and (b (code i-glist))
-     Both have the output language as first argument.)
-    
-  (section 3 $"i-glist" #(i-glist \(lang way list\))
-    Makes a interface/markup as close as possible in the output language as
-    described in the 'way'.
-    
-    (p This is GILs equivalent to tags, except that the tags are replaced by 
-    general objects.))
-
-  (section 3 $"i-call" #(i-prep \(lang object\))
-    Makes interface/markup as close as possible to the language.
-    
-    (p It is to funcall functions directly.))
+  (execute $"../principles.gil")
   
-  You don't use these directly, are functions that compose 
-  these for you. (code glist) and (code glist-list) do this, they also 
-  wrap in a lambda.
-  This way, the resulting function is independent on the (code *lang*)
-  special 
-  variable. Basically, it is an object to describe the function in the raw,
-  to be exported the (code *lang*) when it is (code call)ed with it.
-  
-  (section 2 $"objects" #(Objects)
-    So then the important question is what sort of objects. 
-    Here are some pretty basic ones:
-    (point-list
-     #(Lists are given by the class dot-list \(TODO misnomer\) but can also
-       be obtained via
-       (b :point-list, :alt-list, :numbered-list) etcetera.)
-     #(Sections, similar to that of those Latex. Sections can also be used
-       to make separate pages for websites.)
-     #(Classes and associated functions indicating headers, bold,
-        italic etcetera.)
-     #(Tables)
-     #(Styles \(based on css\))
-     #(Image-file)))
-    
   See (link $"GIL-use" GIL from user perspective) or 
    the autodocumentation for more.
    
@@ -120,7 +90,10 @@ entered, but it is just good habit to fill those.\))
     (package-link $:gil-html).))
   
 (section 1 $"GIL-use" #(GIL from user perspective)
-
+  
+  (p (b NOTE) except for the autodoc, it just isn't ready for regular 
+     users.)
+  
   If things get to nested, try 
   (url-link $"http://lisp-umac.berlios.de/main.html" the denest macro),
   which removes nestedness. (package-link $:denest \(autodoc\))
@@ -167,7 +140,7 @@ entered, but it is just good habit to fill those.\))
     
   Firstly, (b don't) use any of the 'i-...' functions, in data-like code
   these are meant, and if you do, always make the second argument 
-  gil:*lang*, that is how the language is passed.
+  $(mention+ '*lang*), that is how the language is passed.
   \(Which is later deferred to a
 (url-link $"http://www.gigamonkeys.com/book/variables.html#dynamic-aka-special-variables"
 	   special variable).\)
@@ -179,9 +152,21 @@ entered, but it is just good habit to fill those.\))
 (comment TODO (section 2 $"GIL-use-examples" #(Examples)
   )
   ))
-  
+
+(section 1 $"Todo" $nil
+  Various todo list, first very external bits. 
+  (note Some should be different library.)
+
+  (execute $"../todo.gil")
+  )
+
 (section 1 $"GIL-output" #(GIL output languages)
-  Currently GIL has only html output. Used to have text and latex output, 
-  but broke them making changes.\(To be fixed.\)
+  Currently GIL has only html and txt output. There is a file for Latex 
+  output but doesn't work well enough. (link $"This library, outputs" see 
+  here) for further todos with respect to outputs.)
+
+(section 1 $"Contributors" #(Contributors)
+  This has always been one-man project so far, being me,
   
-  (p Neat would be to have GUI toolkit 'outputs', like via cl-gtk.))
+  (p (url-link $"http://www.ojasper.nl/" Jasper den Ouden), 
+gmail adress o.jasper.))

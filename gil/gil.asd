@@ -11,9 +11,13 @@ Probably good idea to use combined with denest."
   :serial t
   :depends-on (:generic :denest)
   :components (;Base stuff.
-	       (:file "gil") ;Base gil defgenerics.
-	       (:file "share") ;Some tools, and variables.
-	       (:file "style")
+	       (:module "specify"
+		:serial t
+                :components
+   	        ((:file "gil") ;Base gil defgenerics.
+		 (:file "vars")
+ 	         (:file "share") ;Some tools, and variables.
+	         (:file "style")))
 	       (:file "read") ;Syntax for data-like use. TODO improve.
 	       ;Tool to create GIL code.
 	       (:file "info") ;produce a table of contents.
@@ -22,7 +26,8 @@ Probably good idea to use combined with denest."
 	       (:module "output"
 		:serial t
 		:components
-		((:file "html")
+		((:file "util")
+		 (:file "html")
 		 (:file "txt")
 		 (:file "latex")))
                ;User aids.

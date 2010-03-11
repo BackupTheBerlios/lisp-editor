@@ -12,11 +12,9 @@
 (defpackage :gil
   (:use :common-lisp :generic)
   (:export mk *lang*
-	   cur-def-lang
-	   i-glist i-call
 	   def-glist def-call
 	   glist glist-list
-	   call call-list call-list*)
+	   call call-list)
   (:documentation
    "GIL: General Interface _Library_ (But be sure to confuse people with 
 the L being Language ;) )
@@ -63,7 +61,9 @@ way:
  :list Point-by-point list, class point-list allows for more specification.
  If you made a custom one, and none applies, it reverts to :p"
   (lambda ()
-    (i-glist *lang* way things)))
+    (i-glist *lang* way things)
+    (values)))
+;Note: not returning anything until circumscribed what that should be.
 
 (defun glist (way &rest things)
   (glist-list way things))
@@ -97,16 +97,16 @@ way:
 
 (defun call (thing)
   "Does runs i-call with *lang*"
-  (i-call *lang* thing))
+  (i-call *lang* thing)
+  (values)) ;Note see glist-list.
 
 (defun call-list (list)
   (mapcar #'call list))
-(defun call-list* (list)
-  (lambda () (call-list list)))
 
 (defmethod i-call ((lang null) thing)
   (error "The language is not set."))
 
+;;NOTE/TODO it turns out i have to redo these? Why?
 (defmethod i-call (lang (string string))
   (declare (ignore lang))
   (write-string string))

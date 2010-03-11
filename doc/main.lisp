@@ -2,7 +2,8 @@
 
 (require :more)
 (require :autodoc)
-(load "gil/output/latex.lisp")
+(load "gil/tools/contents.lisp")
+(load "tools/autodoc.lisp")
 
 (defun scan-stuff ()
   (let ((*default-pathname-defaults* 
@@ -23,12 +24,20 @@
 (defun package-link (pkg &rest objects)
   (apply #'autodoc-gil:mention `(defpackage ,pkg ,@objects)))
 
+(defun mention+ (name &rest objects)
+  "Mentions, assuming either function or variable and not ambiguous."
+  (assert (not (keywordp name)))
+  (if-let mention (expr-scan:access-result
+		   '(defun defgeneric defmacro defvar defparameter) name)
+    (autodoc-gil:mention-obj mention objects)
+    (u (string-downcase name))))
+
 (defun side-paned-page (sidepane)
   (gil-user::side-paned-page-handler
    :top-pane (inline-style "font-size:250%" "Lisp-editor")
    :top-pane-args '(:colspan 2 :align :center)
    :left-pane (series sidepane :hr
-		      "Hosted by" (newline)
+		      "Hosted by" :newline
 ;Note: currently not enough features to do it fully the same as:
 ;<a href="http://developer.berlios.de">
 ;<img src="http://developer.berlios.de/bslogo.php?group_id=0" width="124" height="32" border="0" alt="BerliOS Logo" /></a> 
@@ -41,13 +50,13 @@
  standard output."
   (let*((*default-pathname-defaults*
 	 #p"/home/jasper/proj/lisp-editor/doc/html/")
-	(gils::*attempt-readable* nil)
-	(autodoc-gil::*treat-args* nil)
-	(autodoc-gil::*treat-title* :title-args)
+	(*attempt-readable* nil)
+	(autodoc-gil:*treat-args* nil)
+	(autodoc-gil:*treat-title* :title-args)
 	(gil-info::*links* (make-hash-table))
 	(site-contents
 	 (gil-contents:use-contents
-	  (gil-info:gather-contents  "../website.gil")
+	  (gil-info:gather-contents "../website.gil")
 	  (gil-contents:c-el-seq
 	   (:level-filter :to 1) :header :link)))
 	(autodoc
@@ -69,20 +78,20 @@
     (with-open-file (stream "default.css" :direction :output
 			    :if-exists :supersede :if-does-not-exist :create)
       (declare (ignore stream)))
-    (let ((gils:*handle-page* (side-paned-page site-contents)))
+    (let ((gil-vars:*handle-page* (side-paned-page site-contents)))
       (call(execute "../website.gil")))
-    (let ((gils:*handle-page* (side-paned-page
-			       (glist :series site-contents
+    (let ((gil-vars:*handle-page* (side-paned-page
+			  (glist :series site-contents
 				 (inline-style "color:gray"
-				  (header 4 (u(b "Autodoc:"))))
+				   (header 4 (u(b "Autodoc:"))))
 				 autodoc-contents))))
       (call autodoc))))
 
-(mk-website)
+(time (mk-website))
 
 ;;Doesn't work atm.. Because expression scan misses environment treatment, 
 ;; or just kinks?
-(let ((*default-pathname-defaults* 
+(let ((*default-pathname-defaults*
        #p"/home/jasper/proj/lisp-editor/doc/autodoc/")
       (ref
        (mapcar
@@ -121,11 +130,14 @@
        #p"/home/jasper/oproj/cl-fad-0.6.3/"))
   (expr-scan:scan-file "cl-fad.asd"))
 
-(with-open-file (*standard-output* "doc/autodoc/cl-fad.txt"
-		 :direction :output :if-does-not-exist :create
-		 :if-exists :supersede)
-  (let ((gils::*section-page-level* 0)
-	(*lang* :txt))
+
+(let ((*default-pathname-defaults*
+       #p"/home/jasper/proj/lisp-editor/doc/autodoc/")
+      (gils::*section-page-level* 0)
+      (*lang* :txt))
+  (with-open-file (*standard-output* "cl-fad.txt"
+    	     	    :direction :output :if-does-not-exist :create
+		    :if-exists :supersede)
     (call (autodoc-gil:document :cl-fad :pkg :level 2))))
 
 
@@ -136,6 +148,23 @@
 	(*lang* :latex))
     (call (autodoc-gil:document :cl-fad :pkg :level 2))))
 
+(with-open-file (*standard-output* "doc/autodoc/cl-fad.html"
+		 :direction :output :if-does-not-exist :create
+		 :if-exists :supersede)
+  (let ((gils::*section-page-level* 0)
+	(*lang* :html))
+    (call (autodoc-gil:document :cl-fad :pkg :level 2))))
 
 (let ((*lang* :latex))
   (call (section 3 "miauw" nil "KAKASAF " "agsgd  fas")))
+
+(let ((*default-pathname-defaults*
+       #p"/home/jasper/proj/lisp-editor/doc/")
+      (*lang* :html)
+      (gils::*attempt-readable* nil)
+      (gil-html::*default-style-file* "default.css"))
+  (with-open-file (*standard-output* "principles.html"
+	 	     :direction :output :if-does-not-exist :create
+		     :if-exists :supersede)
+    (call (gil-html::style))
+    (call (execute "principles.gil"))))

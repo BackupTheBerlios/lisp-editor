@@ -46,6 +46,8 @@ Any s-expression can be tracked. (So macros and functions can be tracked.)
 
 (defgeneric name (obj) (:documentation "Gets name of object."))
 
+(defmethod name ((null null)))
+
 (defun add-scanner-fun (for-name scan-function)
   "Adds a scanner for a macro/function."
   (declare (type function scan-function))
@@ -197,29 +199,35 @@ Discontinued scan."
 (add-scanner-fun 'defun #'fun-scanner)
 (add-scanner-fun 'defmacro #'fun-scanner)
 
-(flet ((additional-scanner-fun (expr)
-	 "Scans for used variables/functions to find "
-	 (when (or (not expr) (null *in-funs*))
-	   (return-from additional-scanner-fun))
-	 (when-let tracker
-	     (if-use (access-result 'defmacro (car *in-funs*))
-		     (access-result 'defun (car *in-funs*))
-		     (access-result 'defvar (car *in-funs*))
-		     (access-result 'defparameter (car *in-funs*)))
+(setq *additional-scan* nil)
+(labels ((add-dep-to-tracker (tracker expr)
+	   (unless tracker (return-from add-dep-to-tracker))
 	   (with-slots (var-dep fun-dep) tracker
-	     (cond
-	       ((symbolp expr) ;Register var/parameter useages. 
+	     (typecase expr
+	       (symbol ;Register var/parameter useages. 
 		(when (and (not (assoc expr *eh-sym-macs*))
 			   (or (access-result 'defvar expr)
 			       (access-result 'defparameter expr))
 			   (find expr var-dep))
 		  (push expr var-dep)))
-	       ((listp expr) ;Register function/macro useages.
+	       (list ;Register function/macro useages.
 ;External flets and lets don't count. TODO They should..
-		(unless (or (find expr *eh-funs*)
-			    (find expr *eh-macs*)
-			    (find (car expr) fun-dep))
-		  (push (car expr) fun-dep))))))))
+		(let ((name (car expr)))
+		  (unless (or (find name *eh-funs*) (find name *eh-macs*))
+		    (pushnew name fun-dep)))))))
+	 (additional-scanner-fun (expr)
+	   "Scans for used variables/functions to find "
+	   (when (null expr)
+	     (return-from additional-scanner-fun))
+	   (dolist (fun *in-funs*)
+	     (add-dep-to-tracker
+	      (or (unless (or (listp fun) (symbolp fun))
+		    fun)
+		  (access-result 'defmacro fun)
+		  (access-result 'defun fun)
+		  (access-result 'defvar fun)
+		  (access-result 'defparameter fun))
+	      expr))))
   (push #'additional-scanner-fun *additional-scan*))
 
 (defclass track-generic (track-form)
@@ -251,7 +259,7 @@ Discontinued scan."
 	(t                 (error "")))
     (let((gen
 	  (if-use ;Automatically makes a generic if not scanned.
-	   (access-result 'defgeneric name)
+   (access-result 'defgeneric name)
 	   (setf (access-result 'defgeneric name)
 		 (make-instance 'track-generic
 		   :form `(defgeneric ,name (,@(mapcar #'delist args))
@@ -311,7 +319,6 @@ fun-dep and var-dep for initform!"))
 	   (if-use (unless *reading-myself*
 		     *load-pathname*)
 		   *default-pathname-defaults*)))
-      (print system-name)
       (when (asdf:find-system system-name nil)
 	(when :also-load
 	  (asdf:oos 'asdf:load-op system-name))

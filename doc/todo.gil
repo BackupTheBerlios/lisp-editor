@@ -1,0 +1,117 @@
+
+	
+(section 2 $"External libraries to build on" $nil
+
+  (section 3 $"Package permission system" $nil
+    Somehow leverage packages to handle permission to run different 
+    functions. For instance preventing access to files and such. This way
+    perhaps files can be send in .gil/.lisp form, and just run by a 
+    suitable browser. (note Or perhaps also messaging.) This aught to be
+    useful in a more general sense)
+  )
+
+(section 2 $"Document specification objects" $nil
+  This is the most precarious part of the whole project changes here 
+  affect the document creation tools (i and) the outputs. It has to be done
+  properly.
+    
+  (section 3 $"Better style management" $nil
+    Style management is pretty much an exact copy of CSS at the moment, and
+    only the html output implements them. It seems likely that i will ditch
+    (mention+ $'refer-style), and rename (mention+ $'inline-style) to just
+    (b style), then people can just use creation-as needed or variables 
+    denoting styles. And the html output will then have to memoize then, 
+    detecting styles it has already seen.
+
+    (p And they need to be able to hook onto some glist calls.))
+
+  (section 3 $"Better linking" $nil
+    Improve how internal links work. Currently they are all on the same 
+    namespace.))
+
+(section 2 $"Document creation tools" $nil
+  Some of these also conceivably outside this library.
+
+  (section 3 $"Logger" $nil
+    Logger that adds files with properly treated timestamps. In blog/just
+    any kind of log form. Probably should have a hook just like 
+    $(mention+ '*handle-page*). Should do .rss, not sure what
+    way is best. Being able to read from stuff like a git log is also 
+    nice. (note That would belong in tools/, not gil/tools/))
+
+  (section 3 $"Indexer" $nil
+    Indexes words for an index, like at the end of the books. Words can
+    already be made $(mention+ 'notable), and $(package-link :gil-info)
+    picks them up, but there is nothing to use it yet.)
+    
+  (section 3 $"Autodocumentation" $nil
+    Already have it, but still needs expansion.
+    (point-list
+     #(Automatically link to Common Lisp documentation in sites
+         (url-link $"http://www.lispworks.com/documentation/HyperSpec/Front/X_AllSym.htm" like here))
+     #(Visualization of dependencies with connecting graphs, perhaps 
+        with graphviz. 
+        (note probably brunt of this in a separate package.))
+     #(More macros/functions it catches, like specific ones of this 
+        project.)
+     #(Adding extra documentation like description per-argument, 
+        examples.))
+
+  (section 3 $"File lister" $nil
+    Do something with the file tree, perhaps a hook to produce some text 
+    about the various files. Will need cl-fad.)))
+
+(section 2 $"Outputs" $nil
+  
+  (section 3 $"Output to gui" $nil
+    To live up to its name it needs to be able to make Guis. This will 
+    probably require more 'foundational' code like in gil/share.lisp.
+    My own eye is on cl-gtk atm to do this output.
+    
+    (p It is probably also hard, figuring out how to respond similarly as
+       with the other outputs, having the other outputs behave 
+       apropriately in their subsets of capability.)
+      
+    (p It will also open the path to further tools, like gui
+       text/website/gui creation.))
+        
+  (section 3 $"Improving current outputs" $nil
+    These of course need to be kept up to date and such.)
+   
+  (section 3 $"Output to gil itself" $nil
+    Just that, output gil code, possibly in a succinct form, and for 
+    purpose of sending it to others.)
+ 
+  (section 3 $"Output to speak" $nil
+    Output something specifically a text-to-speak reader can use.))
+  
+(section 2 $"todo-Various" #(Various)
+
+  (section 3 $"Only re-output the files that changed" $nil
+    Although autodoccing and outputting this whole site took only 
+    0.1 seconds for this entire website, it would be nice to be able to 
+    stick to what changed.
+    
+    (p This is at two levels, at the final output level and the 
+       function\(As dependant on $(mention+ '*lang*) \)
+       that is to be used for this final output.)
+    
+    (p (note Reluctant to start focusing on performence of conversion itself at
+       the moment.)))
+    
+  (section 3 $"More help in interacting with gil" $nil
+    More help in interacting with gil would be nice, however, i do not 
+    think a function setting special variables is a good idea. 
+    (note i did it and found myself working around it, removed it 
+    again.))
+    
+  (section 3 $"Further reader systems" $nil
+    Perhaps non-lispy reader, more xml-style reader.)
+
+  (section 3 $"Read other files" #(Read other files)
+    The reverse, html,pdf->gil and such.))
+ 
+(section 2 $"Apps using this" $nil
+  Stuff that uses this, like git tracker, probably want more maturity in 
+  the rest first.)
+  

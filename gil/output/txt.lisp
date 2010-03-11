@@ -10,7 +10,9 @@
 (cl:in-package :cl)
 
 (defpackage gil-txt
-  (:use :common-lisp :generic :gil-util :gil :gil-share)
+  (:use :common-lisp :generic
+	:gil-output-util
+	:gil :gil-vars :gil-share :gil-style)
   (:documentation "Text output of General Interface Library/Language.
 Goes by symbol :txt
 
@@ -42,7 +44,7 @@ TODO not tested very deeply."))
   (dump-txt)
   (call-list objects))
 
-(def-glist (dot dot-list) list
+(def-glist (dot lister) list
   (dump-txt)
   (let ((*indent-depth* (+ *indent-depth* 2)))
     (dolist (el list)
@@ -54,7 +56,7 @@ TODO not tested very deeply."))
 
 (def-glist (sym symbol) list
   (let ((*indent-depth* (+ *indent-depth* 1)))
-    (i-glist *lang* (mk dot-list :style sym) list)))
+    (i-glist *lang* (mk lister :style sym) list)))
 #|
  (defun numbered-list-raw
     (list &key (n 1) (prep "") long-numbers
@@ -86,13 +88,15 @@ TODO not tested very deeply."))
   (call (format nil "(~a)" (gils::name url))))
 
 ;;Basic modifiers.
-
 (def-glist :bold objects
   (call "*") (call-list objects) (call "*"))
 (def-glist :italic objects
   (call "*") (call-list objects) (call "*"))
 (def-glist :underlined objects
   (call "_") (call-list objects) (call "_"))
+
+(def-glist :note objects
+  (call "(") (call-list objects) (call ")"))
 
 ;;Headers.
 

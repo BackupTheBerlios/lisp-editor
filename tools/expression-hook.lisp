@@ -192,12 +192,12 @@ Used for gathering information on code autodoc via expression-scan."))
 
 (def-base-macro defvar (defvar name &optional init doc)
   `(,defvar ,name ,@(when init
-		      (list (let ((*in-funs* (cons *in-funs* name)))
+		      (list (let ((*in-funs* (cons name *in-funs*)))
 			      (expand init))))
      ,@(when doc (list doc))))
 (def-base-macro parameter (defvar name &optional init doc)
   `(,defvar ,name ,@(when init
-		      (list (let ((*in-funs* (cons *in-funs* name)))
+		      (list (let ((*in-funs* (cons name *in-funs*)))
 			      (expand init))))
      ,@(when doc (list doc))))
 
