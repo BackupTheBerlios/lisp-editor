@@ -3,7 +3,7 @@
 (require :more)
 (require :autodoc)
 (load "gil/tools/contents.lisp")
-(load "tools/autodoc.lisp")
+(load "tools/autodoc.lisp") ;;TODO warnings
 
 (defun scan-stuff ()
   (let ((*default-pathname-defaults* 
@@ -22,14 +22,14 @@
 (scan-stuff)
 
 (defun package-link (pkg &rest objects)
-  (apply #'autodoc-gil:mention `(defpackage ,pkg ,@objects)))
+  (apply #'gil-autodoc:mention `(defpackage ,pkg ,@objects)))
 
 (defun mention+ (name &rest objects)
   "Mentions, assuming either function or variable and not ambiguous."
   (assert (not (keywordp name)))
   (if-let mention (expr-scan:access-result
 		   '(defun defgeneric defmacro defvar defparameter) name)
-    (autodoc-gil:mention-obj mention objects)
+    (gil-autodoc:mention-obj mention objects)
     (u (string-downcase name))))
 
 (defun side-paned-page (sidepane)
@@ -51,8 +51,8 @@
   (let*((*default-pathname-defaults*
 	 #p"/home/jasper/proj/lisp-editor/doc/html/")
 	(*attempt-readable* nil)
-	(autodoc-gil:*treat-args* nil)
-	(autodoc-gil:*treat-title* :title-args)
+	(gil-autodoc:*treat-args* nil)
+	(gil-autodoc:*treat-title* :title-args)
 	(gil-info::*links* (make-hash-table))
 	(site-contents
 	 (gil-contents:use-contents
@@ -62,7 +62,7 @@
 	(autodoc
 	 (glist-list :series
 	   (mapcar (lambda (pkg)
-		     (autodoc-gil:document pkg :pkg :level 2))
+		     (gil-autodoc:document pkg :pkg :level 2))
 		   '(:generic :denest
 		     :package-stuff :expression-hook :expression-scan
 		     :autodoc-gil
@@ -87,7 +87,7 @@
 				 autodoc-contents))))
       (call autodoc))))
 
-(time (mk-website))
+(time (mk-website)) ;TODO it is warning me a bit.
 
 ;;Doesn't work atm.. Because expression scan misses environment treatment, 
 ;; or just kinks?
@@ -138,7 +138,7 @@
   (with-open-file (*standard-output* "cl-fad.txt"
     	     	    :direction :output :if-does-not-exist :create
 		    :if-exists :supersede)
-    (call (autodoc-gil:document :cl-fad :pkg :level 2))))
+    (call (gil-autodoc:document :cl-fad :pkg :level 2))))
 
 
 (with-open-file (*standard-output* "doc/autodoc/cl-fad.tex"
@@ -146,14 +146,14 @@
 		 :if-exists :supersede)
   (let ((gils::*section-page-level* 0)
 	(*lang* :latex))
-    (call (autodoc-gil:document :cl-fad :pkg :level 2))))
+    (call (gil-autodoc:document :cl-fad :pkg :level 2))))
 
 (with-open-file (*standard-output* "doc/autodoc/cl-fad.html"
 		 :direction :output :if-does-not-exist :create
 		 :if-exists :supersede)
   (let ((gils::*section-page-level* 0)
 	(*lang* :html))
-    (call (autodoc-gil:document :cl-fad :pkg :level 2))))
+    (call (gil-autodoc:document :cl-fad :pkg :level 2))))
 
 (let ((*lang* :latex))
   (call (section 3 "miauw" nil "KAKASAF " "agsgd  fas")))

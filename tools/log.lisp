@@ -10,8 +10,10 @@
 (cl:in-package :cl-user)
 
 (defpackage :log
-  (:use :common-lisp :generic)
-  (:export init with-init *entries* add-entry remove-entry
+  (:use :common-lisp :generic :cl-fad)
+  (:export init with-init *entries*
+	   add-entry add-directory-entries remove-entry
+	   find-entry-name find-entry-file
 	   name file keywords links entry-time)
   (:documentation "Very basic logger.
 
@@ -46,7 +48,7 @@ Note: this might be a noobish way of doing it. The filename system is\
    (links :initarg :links :type list :accessor links
      :documentation "Links to other entries, by file-name.")
    (entry-time :initarg :entry-time :type integer :reader entry-time)
-   (data :initarg data :type list :reader data)))
+   (data :initarg :data :type list :reader data)))
 
 (defun make-entry (file-name &key (entry-name file-name) keywords links
 		                   (entry-time (get-universal-time)))
@@ -65,6 +67,11 @@ Note: this might be a noobish way of doing it. The filename system is\
   (with-slots (entry-name file-name entry-time keywords links) entry
     (write-data-line (list entry-name file-name entry-time keywords links)
 		     stream)))
+
+(defun find-entry-name (name)
+  (find-if (lambda (el) (string= name (name el))) *entries*))
+(defun find-entry-file (file)
+  (find-if (lambda (el) (string= file (file el))) *entries*))
 
 (defun log-file ()
   (format nil "~a~a" *directory* *log-name*))
@@ -157,7 +164,47 @@ Note: this might be a noobish way of doing it. The filename system is\
 	       :keywords keywords :links links)
 	     *entries*)))
 
-(defun remove-entry (file-name)
+(labels ((recursive-list (dirname)
+	   (mapcan (lambda (el)
+		     (if (directory-pathname-p el)
+		       (recursive-list el)
+		       (list el)))
+		   (list-directory dirname))))
+  (defun add-directory-entries
+      (&key (dirname *default-pathname-defaults*) 
+       (no-path t) recursive (hook #'identity))
+    "Add entries to the log that aren't there yet."
+    (let ((list (if recursive (recursive-list dirname)
+		  (let ((list (list-directory dirname)))
+		    (if no-path
+		      (remove-if #'cl-fad:directory-pathname-p list)
+		      list)))))
+      (dolist (el list)
+	(unless (find-if (lambda (other)
+			   (or (string= (name el) (name other))
+			       (string= (file el) (file other))))
+			 *entries*)
+	  (push (funcall hook (make-entry el :file-name el
+					  :keywords '(:directory-added)))
+		*entries*))))))
+      
+(defun remove-entry
+    (file-name &key delete-dont-ask (delete delete-dont-ask)
+     (if-does-not-exist :error))
+  "Remove an entry by file name."
   (setq *entries*  ;TODO also remove the file.
 	(remove-if (lambda (entry) (string= (file entry) file-name))
-		   *entries*)))
+		   *entries*))
+  (cond ((not delete))
+	(delete-dont-ask
+	 (delete-directory-and-files file-name))
+	(t
+	 (format t "Are you sure you want to delete ~a recursively.
+y/n~%"
+		 file-name)
+	 (do
+	  ((ch (read-char) (read-char)))
+	  ((case ch ((#\n #\y #\N #\Y) t))
+	   (case ch ((#\y #\Y)
+		     (delete-directory-and-files file-name
+		       :if-does-not-exist if-does-not-exist))))))))

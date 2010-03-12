@@ -197,7 +197,6 @@ tracked by gil-info."))
 	       ((string= *cur-page* page)
 		(sanitized-link "a href=\"#~a\"" name))
 	       (t;(string= *cur-page* "")
-		(warn "~s ~s" *cur-page* page)
 		(sanitized-link "a href=\"~a.html#~a\"" page name)))))
 	  (gil-info::url-entry
 	   (sanitized-link "a href=\"~a\""

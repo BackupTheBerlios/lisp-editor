@@ -1,10 +1,6 @@
 
-(pushnew "/home/jasper/proj/lisp-umac/" 
-	 asdf:*central-registry* :test #'equal)
+;;Assumes current directory is at base of project.
 
-(pushnew "/home/jasper/proj/lisp-ed/tools" 
-	 asdf:*central-registry* :test #'equal)
-(pushnew "/home/jasper/proj/lisp-ed/exemplars"
-	 asdf:*central-registry* :test #'equal)
-(pushnew "/home/jasper/proj/lisp-ed/gtk"
-	 asdf:*central-registry* :test #'equal)
+(pushnew "tools/" asdf:*central-registry* :test #'equal)
+(pushnew "gil/" asdf:*central-registry* :test #'equal)
+(pushnew "libs/" asdf:*central-registry* :test #'equal)

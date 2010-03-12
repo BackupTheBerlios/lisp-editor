@@ -14,7 +14,9 @@
 (defpackage :gil-share
   (:use :gil :gil-vars :common-lisp :generic)
   (:nicknames :gils)
-  (:export p series
+  (:export about-file
+
+           p series
 
 	   b i u p-code code quotation
 	   notable note comment
@@ -32,6 +34,10 @@
  functions to help use them."))
 
 (in-package :gil-share)
+
+(defmacro about-file (&rest rest)
+  "Should be at start of file, so data about file can be in it."
+  (declare (ignore rest)))
 
 ;;Convenience functions.
 (defmacro def-glist-caller (name (&rest args) &body body)

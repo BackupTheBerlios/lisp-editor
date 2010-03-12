@@ -9,7 +9,7 @@
 
 (cl:in-package :cl)
 
-(defpackage :autodoc-gil
+(defpackage :gil-autodoc
   (:use :common-lisp :generic :denest :package-stuff
 	:gil :gil-share 
 	:expression-scan)
@@ -19,7 +19,7 @@
   (:documentation "Produces GIL 'code' documentation.
 Note: keyword 'way' arguments are the defaults."))
 
-(in-package :autodoc-gil)
+(in-package :gil-autodoc)
 
 (defvar *autodoc-dir* ""
   "Autodocumentation automatically to separate directory.

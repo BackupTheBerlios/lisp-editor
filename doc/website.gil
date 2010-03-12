@@ -64,12 +64,12 @@ entered, but it is just good habit to fill those.\))
      documentation aside would be nice.)
 
   (p It is also very integratable into .gil files and such, onw can just
-     do $(mention+ 'autodoc-gil:mention
-          (code "(autodoc-gil:mention type name &rest optionally-further-text)"))
+     do $(mention+ 'gil-autodoc:mention
+          (code "(gil-autodoc:mention type name &rest optionally-further-text)"))
      to mention a statement and it should link it, (b if) it is scanned and
      has a appropriate 
-     $(mention+ 'autodoc-gil:document)!
-     You don't have to also use (code autodoc-gil:) if that is used in the
+     $(mention+ 'gil-autodoc:document)!
+     You don't have to also use (code gil-autodoc:) if that is used in the
      package you are reading with. (note See (link $"Todo") for what is 
      still missing.))
   
