@@ -7,7 +7,7 @@
 ;;  (at your option) any later version.
 ;;
 
-(cl:in-package :cl)
+(cl:in-package :cl-user)
 
 ;TODO how is it printing?!?!?
 (defpackage :expression-scan
@@ -22,13 +22,15 @@
 	   
 	   scan-expr scan-file scan-loadfile scan-system
 	 ;Some of the scan data that come with it
+	   base-track typed-track depend-track
 	   track-fun track-var
 	   track-form track-generic track-method
+	   
+	   track-data
 	   type name args init fun-dep var-dep flet-dep var-dep other
 	   
 	   add-scanner def-scanner expr)
-  (:documentation 
-   "Can create and use expression-hook to obtain information about code.
+  (:documentation "Can create and use expression-hook to obtain information about code.
 Any s-expression can be tracked. (So macros and functions can be tracked.)
 "))
 
@@ -71,7 +73,7 @@ Providing a list of fun-names will search them in sequence."
   (cond
     ((null fun-name) nil)
     ((listp fun-name)
-      (if-use (access-result (car fun-name) name)
+      (or (access-result (car fun-name) name)
 	      (access-result (cdr fun-name) name)))
     (t
      (gethash (vector fun-name name) *scan-result*))))
@@ -97,7 +99,7 @@ Discontinued scan."
   "The expression hook of the scanner."
   (dolist (fn *additional-scan*)
     (funcall fn expr))
-  (if-use
+  (or
    (when (and expr (listp expr)) ;See if any trackers for it.
      (when-let fn (gethash (car expr) *fun-scan*)
        (funcall fn expr))) ;Trackers need to expand-hook, (otherwise stops.)
@@ -110,7 +112,7 @@ Discontinued scan."
     (funcall fn form))
   (funcall expander form env))
 
-;;Scanning stuff.
+;;Scanning stuff. ;;TODO should some of it be other package?
 (defun scan-file (stream ;This aught to be default, right?
 		  &key (*package* (find-package :cl-user))
 		       (expression-hook #'scan-expression-hook))
@@ -142,7 +144,26 @@ Discontinued scan."
 	(*in-funs* nil))
     (expand expr)))
 
-(defclass track-form ()
+(defclass base-track ()
+  ((keywords :initarg :keywords :initform nil :type list)))
+
+(defclass typed-track ()
+  ((type :initarg :type :initform nil)))
+
+(defclass depend-track ()
+  ((fun-dep :initarg :fun-dep :initform nil :type list
+     :documentation "What functions/macros it depends on.")
+;   (flet-dep :initarg :flet-dep :initform nil :type list
+;     :documentation "Flet/macrolets it depends on.")
+   (var-dep :initarg :var-dep :initform nil :type list
+     :documentation "Assoc list with variables it depends on, and origin.")))
+
+(defun track-data (track name)
+  (getf (slot-value track 'keywords) name))
+(defun (setf track-data) (to track name)
+  (setf (getf (slot-value track 'keywords) name) to))
+
+(defclass track-form (base-track typed-track)
   ((form :initarg :form :type list)))
 
 (defmethod name ((tf track-form))
@@ -163,19 +184,13 @@ Discontinued scan."
 ;;Data tracker for functions and macros.
 ;; Note the convention is to not track data already readily available, 
 ;; like documentation strings.rc
-(defclass track-fun ()
+(defclass track-fun (base-track depend-track)
   ((type :initarg :type :type symbol)
    (name :initarg :name :type symbol :reader name)
    (args :initarg :args :type list)
    
    (in-funs :initarg :in-funs :type list
-     :documentation "Which functions/macros created it.")
-   (fun-dep :initarg :fun-dep :initform nil :type list
-	    :documentation "What functions/macros it depends on.")
-;   (flet-dep :initarg :flet-dep :initform nil :type list
-;     :documentation "Flet/macrolets it depends on.")
-   (var-dep :initarg :var-dep :initform nil :type list
-     :documentation "Assoc list with variables it depends on, and origin."))
+     :documentation "Which functions/macros created it."))
   (:documentation
    "Structure to contain information on functions and macros."))
 
@@ -222,15 +237,16 @@ Discontinued scan."
 	   (dolist (fun *in-funs*)
 	     (add-dep-to-tracker
 	      (or (unless (or (listp fun) (symbolp fun))
-		    fun)
+		    fun) ;TODO all those derived from depend-track?
 		  (access-result 'defmacro fun)
 		  (access-result 'defun fun)
 		  (access-result 'defvar fun)
-		  (access-result 'defparameter fun))
+		  (access-result 'defparameter fun)
+		  (access-result 'defgeneric fun))
 	      expr))))
   (push #'additional-scanner-fun *additional-scan*))
 
-(defclass track-generic (track-form)
+(defclass track-generic (track-form typed-track depend-track)
   ((methods :initarg :methods :initform nil :type list)
    (args :initarg :args :type list))
   (:documentation "Tracks method generic declarations."))
@@ -258,7 +274,7 @@ Discontinued scan."
 	 (values args/dstr dstr/body body))
 	(t                 (error "")))
     (let((gen
-	  (if-use ;Automatically makes a generic if not scanned.
+	  (or ;Automatically makes a generic if not scanned.
    (access-result 'defgeneric name)
 	   (setf (access-result 'defgeneric name)
 		 (make-instance 'track-generic
@@ -274,7 +290,7 @@ Discontinued scan."
 	result))))
 
 ;;Data tracker for variables.
-(defclass track-var (track-form)
+(defclass track-var (track-form typed-track)
   ((fun-dep :initform nil :type list)
    (var-dep :initform nil :type list))
   (:documentation "Structure containing information on macros.
@@ -294,8 +310,29 @@ fun-dep and var-dep for initform!"))
 (add-scanner-fun 'defclass #'form-scanner)
 (add-scanner-fun 'defstruct #'form-scanner)
 
+(def-scanner declaim (&rest args)
+  (dolist (a args)
+    (case (car a)
+      (inline
+	(dolist (sym (cdr a))
+	  (when-let result (access-result '(defun defgeneric defmacro) sym)
+	    (setf (track-data result :inline) t))))
+      (type
+       (dolist (sym (cddr a))
+	 (when-let result (access-result '(defvar defparameter) sym)
+	   (setf (slot-value result 'type) (cadr a)))))
+      (ftype ;Note: a little code repeat here.
+       (dolist (sym (cddr a))
+	 (when-let result (access-result '(defun defgeneric defmacro) sym)
+	   (setf (slot-value result 'type) (cadr a)))))))	 
+  (expand-hook expr))
+
 ;;Scanning asdf systems; load the asd file.
-(defvar *follow-asdf-systems* :also-load)
+(defvar *follow-asdf-systems* t
+  "Whether to follow the files of asdf system that is scanned.
+nil: Don't follow
+true: Follow, assumes the macros in the files have been executed!
+:also-load: If found load it with (asdf:oos 'asdf:load-op system-name).")
 
 (defun scan-asdf-components (components)
   (dolist (component components)
@@ -316,13 +353,14 @@ fun-dep and var-dep for initform!"))
   ;If we know where we are, and are to folow:
   (when *follow-asdf-systems*
     (let ((*default-pathname-defaults* 
-	   (if-use (unless *reading-myself*
+	   (or (unless *reading-myself*
 		     *load-pathname*)
 		   *default-pathname-defaults*)))
-      (when (asdf:find-system system-name nil)
-	(when :also-load
-	  (asdf:oos 'asdf:load-op system-name))
+      (when (and (eql *follow-asdf-systems* :also-load)
+		 (asdf:find-system system-name nil))
+	(asdf:oos 'asdf:load-op system-name))
      ;We only need to scan the files.
      ;TODO doesn't work if subcomponents.
+      (when *follow-asdf-systems*
 	(scan-asdf-components (getf info :components)))))
   expr)

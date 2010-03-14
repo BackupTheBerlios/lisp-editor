@@ -9,7 +9,7 @@
  system for different kinds of interface and markup.
 Probably good idea to use combined with denest."
   :serial t
-  :depends-on (:generic :denest)
+  :depends-on (:generic :denest :log :cl-fad)
   :components (;Base stuff.
 	       (:module "specify"
 		:serial t
@@ -21,7 +21,7 @@ Probably good idea to use combined with denest."
 	       (:file "read") ;Syntax for data-like use. TODO improve.
 	       ;Tool to create GIL code.
 	       (:file "info") ;produce a table of contents.
-	       (:file "util")
+	       ;(:file "util")
 	       ;Outputs.
 	       (:module "output"
 		:serial t
@@ -36,7 +36,8 @@ Probably good idea to use combined with denest."
                (:module "tools" 
                 :serial t
 ;TODO damned asd has problems where load has _no indications_..
-	;	:components
-	;	((:file "contents"))
+		:components
+		((:file "contents")
+		 (:file "log"))
 		)
 	       ))

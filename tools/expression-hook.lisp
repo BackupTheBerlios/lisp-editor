@@ -7,7 +7,7 @@
 ;;  (at your option) any later version.
 ;;
 
-(cl:in-package :cl)
+(cl:in-package :cl-user)
 
 (defpackage :expression-hook
   (:use :cl :generic :denest :package-stuff)
@@ -80,9 +80,8 @@ Used for gathering information on code autodoc via expression-scan."))
    (if (null form) form)
   ;Apply possible symbol-macros.
    (if (symbolp form)
-     (if-use (when-let sm (assoc form *eh-sym-macs*)
-	       (caddr sm))
-	     form))
+     (if-let sm (assoc form *eh-sym-macs*)
+       (caddr sm) form))
   ;Something need not care about.
    (if (not (listp form)) form)
   ;Functions not starting with a symbol. TODO got them all?
@@ -114,7 +113,8 @@ Used for gathering information on code autodoc via expression-scan."))
   ;Just a regular function.
    `(,(car form) ,@(e-list (cdr form)))))
 
-(defun e-list (body) "Short for (mapcar #'expand body)"
+(defun e-list (body)
+  "Short for (mapcar #'expand body)"
   (mapcar #'expand body))
 
 (def-base-macro let (let (&rest vars) &body body)
@@ -298,3 +298,17 @@ Used for gathering information on code autodoc via expression-scan."))
   nil)
 (def-base-macro psetf (&rest stuff) (declare (ignore stuff)) 
   nil)
+
+;;TODO will want to indicate we're in a defclass/defstruct??
+(def-base-macro defclass
+    (defclass name derive-from components &optional rest)
+  (declare (ignore defclass name derive-from rest))
+  (dolist (el components) ;Only expand the bits we want.
+    (expand (getf (cdr el) :initform))))
+
+(def-base-macro defstruct (defstruct name &rest slots)
+  (declare (ignore defstruct name))
+  (dolist (el slots) ;Only expand the bits we want.
+    (when (listp el)
+      (expand (cadr el)))))
+

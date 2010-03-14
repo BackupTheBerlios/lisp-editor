@@ -11,7 +11,7 @@
 
 (defpackage :gil-vars
   (:use :gil :common-lisp)
-  (:export
+  (:export *author*
    *handle-page* *link-page-style*
    *section-page-level* *section-level-modifier*
    *long-number*
@@ -21,6 +21,8 @@
   (:documentation "Various variables determing how things are done."))
 
 (in-package :gil-vars)
+
+(defvar *author* nil)
 
 ;;Creation of additional documentation at output-time.
 (defvar *handle-page* #'identity

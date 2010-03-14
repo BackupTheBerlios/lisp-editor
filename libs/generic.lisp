@@ -1,4 +1,4 @@
-g;;Author: Jasper den Ouden
+;;Author: Jasper den Ouden
 ;;This file is in public domain.
 
 (cl:in-package :cl-user)
@@ -8,10 +8,11 @@ g;;Author: Jasper den Ouden
   (:use :common-lisp)
   (:export sqr delist intern*
 
-	   constant curry curry-l compose
+	   constant curry curry-l compose-rest
 	   
            with-gensyms for-more setf-
 	   if-let if-use when-let case-let
+	   or-list
 	   ift when-do
 	   string-case
 	   clamp
@@ -67,12 +68,9 @@ g;;Author: Jasper den Ouden
     (if ,var ,if-t ,if-f)))
 
 (defmacro if-use (&rest conds)
-  "Returns the first one that returns non-nil."
-  (if (null(cdr conds))
-    (car conds)
-    (with-gensyms (var)
-      `(if-let ,var ,(car conds) ,var
-	 (if-use ,@(cdr conds))))))
+  "Essentially, just 'or' but assuming that the output is actually used.
+Have become increasingly comfortable with just using or in this case."
+  `(or ,@conds))
 
 (defmacro when-let (var cond &body body)
   "When, but with the condition, var available."
@@ -82,6 +80,12 @@ g;;Author: Jasper den Ouden
   "Case, but makes a variable for you."
   `(let ((,var ,is))
      (case ,var ,@cases)))
+
+(defmacro or-list (&rest orred)
+  "If results anything, puts it in a list. Handy for ,@(or-list ...)"
+  (with-gensyms (got)
+    `(when-let ,got (or ,@orred)
+       (list ,got))))
 
 (defmacro ift (manner self &rest with)
   "Returns itself if `(,manner ,self ,@with) true."
@@ -171,7 +175,7 @@ Note: uses apply.. Hope it will optimize."
   (lambda (&rest args)
     (apply fun (append curried args))))
 
-(defun compose (fun to)
+(defun compose-rest (fun to)
   "Composes two functions."
   (lambda (&rest args)
     (funcall fun (apply to args))))

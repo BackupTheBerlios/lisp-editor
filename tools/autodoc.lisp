@@ -13,20 +13,26 @@
   (:use :common-lisp :generic :denest :package-stuff
 	:gil :gil-share 
 	:expression-scan)
-  (:export mention mention-obj document
+  (:export mention mention-package mention-obj document
 	   *treat-title* *treat-args* *treat-args-in-title* *treat-dep*
 	   *mentionable-dependency*)
   (:documentation "Produces GIL 'code' documentation.
-Note: keyword 'way' arguments are the defaults."))
+Note: keyword 'way' arguments are the defaults.
+
+TODO messy file."))
 
 (in-package :gil-autodoc)
+
+(defun documentation* (of type)
+  (when-let docstr (documentation of type)
+    docstr));TODO
 
 (defvar *autodoc-dir* ""
   "Autodocumentation automatically to separate directory.
 TODO implement")
 
-(defvar *scan-doc-string* nil
-  "Whether to scan doc strings as GIL.")
+(defvar *also-internal* nil
+  "Whether to also document the internal variables.")
 
 (defun external-p (sym)
   "Laboriously checks if symbol is external.. Aught to be better way.
@@ -59,7 +65,9 @@ Probably will want document internal stuff too."
   (destructuring-bind (type name &rest ignore)
       (slot-value tf 'expr-scan::form)
     (declare (ignore ignore))
-    (format nil "~D_~D" type name)))
+    (if (eql type 'defpackage)
+      (give-name (find-package name))
+      (format nil "~a_~a_~a" (to-package-name name) type name))))
 
 (defmethod give-name ((vector vector))
   (when (maybe-documented-p (aref vector 0) (aref vector 1))
@@ -68,19 +76,25 @@ Probably will want document internal stuff too."
 (defmethod give-name ((null null))
   nil)
 
+(defmethod give-name ((package package))
+  (format nil "Package_~a" (package-name package)))
+
+(defun mention-package (pkg &rest objects)
+  "Separate mention function of mention of package."
+  (glist-list (make-instance 'link :name (give-name (to-package pkg)))
+    (or objects
+	(list (string-downcase (to-package-name pkg) :start 1)))))
+
 (defmethod give-name ((fun track-fun))
   (with-slots (type name) fun
-    (format nil "~D ~D" type name)))
-
-(defun object-section (level of-object title &rest objects)
-  (apply #'section `(,level ,(give-name of-object) ,title ,@objects)))
+    (format nil "~a_~a_~a" (to-package-name name) type name)))
 
 (defun mention-obj (mentioned objects)
   "Mention a scanned CL statement."
-  (assert (listp objects) nil
-	  "Mention-obj takes a _list_ of objects as arguments.")
+  (declare (type list objects))
   (glist-list
-   (if-let name (when (external-p (name mentioned)) (give-name mentioned))
+   (if-let name (when (or *also-internal* (external-p (name mentioned)))
+		  (give-name mentioned))
      (mk follow-link :name name) :underlined)
    (or objects (list (string-downcase (name mentioned))))))
 
@@ -90,74 +104,73 @@ Probably will want document internal stuff too."
 
 (defmethod i-mention (type name objects)
   (mention-obj (access-result type name)
-	       (if-use objects (list (string-downcase name)))))
+	       (or objects (list (string-downcase name)))))
 
 (defmethod i-mention ((type (eql 'defpackage)) pkg-name objects)
   (mention-obj
    (access-result 'defpackage
 		  (when-let pkg (find-package pkg-name)
 		    (intern (package-name pkg) :keyword)))
-   (if-use objects (list (string-downcase pkg-name :start 1)))))
-
-(defun raw-mention-var (name objects)
-  "Clump various types of variables together."
-  (mention-obj (obj (access-result 'defvar name)
-		    (access-result 'defparameter name) 
-		    (access-result 'variable name))
-	       objects))
+   (or objects (list (string-downcase pkg-name :start 1)))))
 
 (defmethod i-mention ((type (eql 'variable)) name objects)
-  (raw-mention-var name objects))
-(defmethod i-mention ((type (eql 'variable)) name objects)
-  (raw-mention-var name objects))
-(defmethod i-mention ((type (eql 'variable)) name objects)
-  (raw-mention-var name objects))
+  (mention-obj (access-result '(defvar defparameter) name) objects))
+
+(defmethod i-mention ((type (eql 'function)) name objects)
+  (mention-obj (access-result '(defgeneric defun defmacro) name) objects))
 
 (defun mention (type name &rest objects)
   "Mention accessed object.(mention-obj if you already have the object."
   (when (maybe-documented-p type name)
     (i-mention type name objects)))
   
-(defgeneric document (thing manner &key)
-  (:documentation "Documentate things."))  
+(defgeneric document (manner object &key)
+  (:documentation "Documentate things."))
 
-(defmethod document (thing manner &key)
-  (p "Don't know how to document ~D in manner ~D."
-     (type-of thing) manner))
+(defmacro def-document (manner (object &rest keys) &body body)
+  "Define (part of) a documenter of a object."
+  (assert (eql (car keys) '&key) nil "Must start with a &key")
+  (with-gensyms (man)
+    `(defmethod document
+	 (,(if (keywordp manner) `(,man (eql ,manner)) manner) ,object
+	  ,@keys)
+       ,@body)))
 
-(defgeneric document-form (name form manner)
+(defmethod document (thing way &key)
+  (declare (ignore thing way)))
+
+(defgeneric document-form (manner name form)
   (:documentation "Distinguishes between diferrent track-forms."))
-(defmethod document ((track-form track-form) manner &key)
-  (let ((form (slot-value track-form 'expr-scan::form)))
-    (document-form (car form) form manner)))
-(defmethod document-form ((name symbol) form manner)
-  nil)
 
-(defun sym-name (sym)
-  (string-downcase (symbol-name sym)))
+(defmacro def-document-form (manner name (&rest args) &body body)
+  (with-gensyms (man nam form)
+    `(progn
+       (defmethod document (,(if (keywordp manner)
+			       `(,man (eql ,manner)) manner)
+			    (track-form track-form) &key)
+	 (let ((form (slot-value track-form 'expr-scan::form)))
+	   (document-form ,man (car form) form)))
+       (defmethod document-form
+	   (,(if (keywordp manner) `(,man (eql ,manner)) manner)
+	    (,nam (eql ',name)) (,form list))
+	 (destructuring-bind (,@args) (cdr ,form)
+	   ,@body)))))
+
+(defmethod document-form (manner (name symbol) form)
+  nil)
 
 (defvar *treat-args-in-title* :args)
 
-;;Title.
-(defmethod document ((info list) (way (eql :title)) &key with-args)
-  "Produces a title of a track-fun."
-  (destructuring-bind (type name args) info
-    (series
-     (sym-name type) " " (sym-name name)
-     (when (or with-args *treat-args-in-title*)
-       (document args *treat-args-in-title*
-		 :allow-listing (not(eql type 'defun)))))))
-
 ;;Argument docs.
-(defmethod document ((args list) (way (eql :args))
-		     &key allow-listing type
-		     (special-variable-makers '(defvar defparameter)))
+(defun document-args
+    (args &key (allow-listing t)
+     (special-variable-makers '(defvar defparameter) type))
   (collecting (nil arg-doc)
     (dolist (a args)
       (collecting
        (cond
 	 ((and (listp a) (not type) allow-listing)
-	  (document a way :allow-listing allow-listing))
+	  (document-args a :allow-listing allow-listing))
 	 ((case a ((&optional &key &rest) t))
 	  (setq type a) (series (string-downcase a) " "))
 	 ((listp a)
@@ -170,22 +183,18 @@ Probably will want document internal stuff too."
 	       (when (symbolp (cadr a))
 		 (access-result special-variable-makers (cadr a)))
 	       (series
-		"(" (sym-name (car a))
+		"(" (string-downcase (car a))
 		(mention-obj
 		 special-var
-		 (list (sym-name (expr-scan::name special-var))))
+		 (list (string-downcase (expr-scan::name special-var))))
 		")")))
 	    (t
 	     (error "Sublisting not allowed, allow-listing=~D
 Got ~D here" allow-listing a))))
 	 (t
-	  (series (sym-name a) " ")))))
-    (return-from document
+	  (series (string-downcase a) " ")))))
+    (return-from document-args
       (series "(" (glist-list :series arg-doc) ")"))))
-
-;Title with arguments currently the same.
-(defmethod document ((info list) (way (eql :title-args)) &key)
-  (document info :title :with-args t))
 
 ;;Dependency docs.
 (defun package-sorted-symbol-list
@@ -215,154 +224,225 @@ Got ~D here" allow-listing a))))
 	 (section 4 section-name pre-line
 		  (glist-list :series deps))))))
 
-(defmethod document ((info list) (way (eql :dep))
+(defun document-dep (fun-dep var-dep
 		     &key (want-fun-dep t) (want-var-dep t))
-  (destructuring-bind (name fun-dep var-dep) info
-    (declare (ignore name))
     ;TODO way to get round copy-list?
-    (when (or fun-dep var-dep)
-      (setq fun-dep (sort (copy-list fun-dep) #'symbol-package>) ;Sort them.
-	    var-dep (sort (copy-list var-dep) #'symbol-package>))
-      (series 
-       (when (and fun-dep want-fun-dep)
-	 (package-sorted-symbol-list
-	  fun-dep :types '(defun defgeneric defmacro) 
-	  :pre-line "Depends on functions:"))
-       (when (and var-dep want-var-dep)
-	 (package-sorted-symbol-list
-	  var-dep :types '(defvar defparameter)
-	  :pre-line "Depends on variables:"))))))
+  (when (or fun-dep var-dep)
+    (setq fun-dep (sort (copy-list fun-dep) #'symbol-package>) ;Sort them.
+	  var-dep (sort (copy-list var-dep) #'symbol-package>))
+    (series 
+     (when (and fun-dep want-fun-dep)
+       (package-sorted-symbol-list
+	fun-dep :types '(defun defgeneric defmacro) 
+	:pre-line "Depends on functions:"))
+     (when (and var-dep want-var-dep)
+       (package-sorted-symbol-list
+	var-dep :types '(defvar defparameter)
+	:pre-line "Depends on variables:")))))
+
+(def-document :list-keywords ((track expr-scan:base-track) &key)
+  "Treat keywords by just listing them."
+  (series (format nil "Has keywords: ~{~a^, ~}"
+		  (slot-value track 'expr-scan::keywords))))
 
 (defvar *treat-title* :title "Manner to treat title.")
 (defvar *treat-args* :args "Manner to treat arguments.")
 (defvar *treat-dep* :dep "Manner to treat dependencies.")
 
-(defmethod document (thing way &key level)
-  (lambda ()))
+(defvar *package-section-level* 1)
+
+(defvar *full-level* 2)
+(defvar *short-level* 4)
+(defvar *short-link* nil "Whether to link to the short versions.")
+
+(defun document-title
+    (type name args &key with-args (allow-listing (not (eql type 'defun))))
+  "Produces a title possibly with arguments."
+  (series
+   (string-downcase type) " " (string-downcase name)
+   (when (or with-args *treat-args-in-title*)
+     (document-args args :allow-listing allow-listing))))
+
+;;Anything docs.
+(def-document :title ((thing base-track) &key))
+(def-document :title-with-args ((thing base-track) &key)
+  (document :title thing))
+(def-document :args ((thing base-track) &key))
+(def-document :description ((thing base-track) &key)
+  (track-data :documentation thing))
+(def-document :dep ((thing base-track) &key))
+
+(def-document :short ((thing base-track) &key)
+  (section *short-level* (when *short-link* (give-name thing))
+	   (document :title thing)
+    (when *treat-args* (document :args thing))
+    (document :description thing)))
+
+(def-document :full ((thing base-track) &key)
+  (section *full-level* (give-name thing) (document :title thing)
+    (when *treat-args* (p (document :args thing)))
+    (document :description thing)
+    (when *treat-dep*
+      (p (document :dep thing)))))
+
+(def-document :dep ((dep depend-track) &key want-fun want-var)
+  (with-slots (fun-dep var-dep) dep
+    (document-dep fun-dep var-dep :want-fun want-fun :want-var want-var)))
 
 ;;Function docs.
-(defmethod document
-    ((fun track-fun) (level integer)
-     &key (tp 'function)
-     (allow-listing (not (eql (slot-value fun 'expr-scan::type) 'defun))))
-;TODO defaultly make arrangement of arguments depend on length.
-  (with-slots (type name args fun-dep var-dep) fun
-    (object-section level fun
-	     (document (list type name args) *treat-title* 
-		       :allow-listing allow-listing)
-      (when *treat-args*
-	(p (document args *treat-args* :allow-listing allow-listing)))
-      (p (let ((doc-string (documentation name tp)))
-	   (if *scan-doc-string*
-	     (with-input-from-string (stream doc-string)
-	       (glist-list :series 
-			   (gil-read::gil-read-col stream)))
-	     doc-string)))
-      (when *treat-dep*
-	(p (document (list name fun-dep var-dep) *treat-dep*))))))
+(def-document :title ((fun track-fun) &key with-args)
+  (with-slots (type name args) fun
+    (document-title type name args :with-args with-args)))
+
+(def-document :title-with-args ((fun track-fun) &key)
+  (document :title fun :with-args t))
+
+(def-document :description ((fun track-fun) &key)
+  (or (track-data fun :documentation)
+      (documentation* (name fun) 'function)))
+
+(def-document :args ((fun track-fun) &key)
+  (document-args (slot-value fun 'args)))
 
 ;;Generic docs.
- ;TODO currently very basic, info in particular methods appreciated.
-(defmethod document ((fun track-generic) (level integer) &key)
-  (let ((title (format nil "defgeneric ~D"
-		       (string-downcase (expr-scan::name fun)))))
-    (object-section level fun title
-      (cadr(assoc :documentation
-		  (cdddr (slot-value fun 'expr-scan::form)))))))
+(def-document :title ((fun track-generic) &key with-args)
+  (destructuring-bind (name args &rest stuff)
+      (cdr (slot-value fun 'expr-scan::form))
+    (declare (ignore stuff))
+    (document-title 'defgeneric name args :with-args with-args)))
 
-;Document variable.
-(defmethod document ((var track-var) (level integer) &key (tp 'variable))
-  (with-slots (expr-scan::form fun-dep var-dep) var
-    (destructuring-bind (type name &optional init doc) expr-scan::form
-      (declare (ignore init typr)) ;TODO don't ignore?
-      (object-section level var
-	       (format nil "variable ~D" (string-downcase name))
-        doc))))
+(def-document :title-with-args ((fun track-generic) &key)
+  (document :title fun :with-args t))
+
+(def-document :description ((fun track-generic) &key)
+  (or (track-data fun :documentation)
+      (cadr(assoc :documentation
+		  (cdddr (slot-value fun 'expr-scan::form))))
+      (documentation* (cadr (slot-value fun 'expr-scan::form)) 'function)))
+
+;;Document variable.
+(def-document :title ((var track-var) &key)
+  (format nil "variable ~D"
+	  (string-downcase (nth 1 (slot-value var 'expr-scan::form)))))
+
+(def-document :description ((var track-var) &key)
+  (or (track-data var :documentation)
+      (nth 3 (slot-value var 'expr-scan::form))
+      (documentation* (name var) 'variable)))
 
 (defvar *by-names* '(defvar defparameter defun defmacro defgeneric)
   "Types of macros/functions to document. TODO allow names to 'pair up'")
 
-(defvar *section-level* 1)
+;;Document package.(Note the mix of cl and expr-scan object.
+(def-document :title ((package package) &key)
+  (format nil "Package: ~a"
+	  (string-downcase (package-name package) :start 1)))
 
-(defmethod document-form
-    ((name (eql 'defpackage)) form (manner (eql :title-less)))
-  (series
-   (p (cadr(assoc :documentation (cddr form))))
-   (let ((uses (cdr(assoc :use (cddr form)))))
-     (p "Uses packages: " (mention 'defpackage (car uses))
-	(glist-list :series
-	  (mapcan (lambda (pkg)
-		    (list ", " (mention 'defpackage pkg)))
-		  (cdr uses)))))))
+(def-document-form :description defpackage (name &rest assoc)
+  (or (track-data (access-result 'defpackage name) :documentation)
+      (cadr(assoc :documentation assoc))
+      (documentation* (to-package name) t)))
 
-;;Document package. Note: doesn't scan it for you.
-(defmethod document
-    ((package package) manner
-     &key (level 2)
-     (package-name (package-name package))
-     (package-obj
-      (access-result 'defpackage (intern package-name :keyword)))
-     (section-name
-      (if package-obj
-        (give-name package-obj)
-	(format nil "package-~a" package-name)))
-     (section-title
-      (format nil "Package: ~a~a"
-	 (subseq package-name 0 1) 
-	 (string-downcase (subseq package-name 1))))
-     (divider nil))
-  (let (res-list)
+(def-document :description ((package package) &key)
+  (if-let package-obj (access-result 'defpackage
+			  (intern (package-name package) :keyword))
+    (document :description package-obj)
+    (documentation* package t)))
+
+(def-document-form :dep defpackage (name &rest assoc)
+  (declare (ignore name))
+  (let ((uses (cdr(assoc :use assoc))))
+    (series "Uses packages: " (mention 'defpackage (car uses))
+       (glist-list :series
+	 (mapcan (lambda (pkg)
+		   (list ", " (mention 'defpackage pkg)))
+		 (cdr uses))))))
+
+(def-document :dep ((package package) &key)
+  (when-let package-obj (access-result 'defpackage
+			  (intern (package-name package) :keyword))
+    (document :dep package-obj)))
+
+;;Documenting lists of objects.
+(def-document :descriptions ((object-list list) &key)
+  "Makes a short list of just descriptions of objects."
+  (glist-list :descriptions
+    (mapcar (lambda (obj)
+	      (list (let ((*treat-args-in-title* nil))
+		      (document :title obj))
+		    (document :description obj)))
+	    object-list)))
+
+(def-document (way symbol) ((object-list list) &key)
+  "Other types of documenting a list of objects."
+  (glist-list :series
+    (mapcar (lambda (obj) (document way obj)) object-list)))
+
+;;Functions to handle lists of objects (from packages)
+(defun sort-objects (list &optional (sort-compare :alphabetic))
+  "Sorts objects."
+  (sort list
+	(case sort-compare
+	  (:alphabetic
+	   (lambda (a b)
+	     (string> (expr-scan::name a) (expr-scan::name b))))
+	  (t
+	   sort-compare))))
+
+(defun get-objects-of-sym (sym &optional (by-names *by-names*) list)
+  (dolist (by-name by-names list) ;Collect externals.
+    (when-let res (access-result by-name sym)
+      (push res list))))
+
+(defun get-external-objects (package &optional (sort-compare :alphabetic))
+  "Gets sorted external objects of package."
+  (let (list)
     (do-external-symbols (sym package)
-      (dolist (by-name *by-names*) ;Collect externals.
-	(when-let res (when (same-package sym package)
-			(access-result by-name sym))
-	  (push res (getf res-list by-name))
-	  (return))))
-    (let*((ordered-externals ;Put externals in order.
-	   (mapcan 
-	     (lambda (by-name)
-	       (when-let got (getf res-list by-name)
-		 (setf- sort got
-			(lambda (a b)
-			  (string> 
-			   (symbol-name (expr-scan::name a))
-			   (symbol-name (expr-scan::name b)))))
-		 (if divider (cons divider got) got)))
-	     *by-names*))
-	  (total
-	   (series
-	    (if ordered-externals
-	      (glist-list :series 
-	        (mapcar (lambda (res) ;document the parts.
-			  (document res level))
-		       ordered-externals))
-	      (b "Nothing exported."))
-	    :hr)))
-      (if *section-level*
-	(section *section-level* section-name section-title
-          (if package-obj (document package-obj :title-less)
-	                  (documentation package t))
-	  total)
-	total))))
+      (when (same-package sym package)
+	(setf- append list (get-objects-of-sym sym))))
+    (sort-objects list sort-compare)))
 
-(defmethod document ((pkg-sym symbol) (manner (eql :pkg))
-		     &key (level 1))
-  (document (find-package pkg-sym) t :level level))
+(defun get-internal-objects (package &optional (sort-compare :alphabetic))
+  (let (list)
+    (do-symbols (sym package)
+      (when (and (same-package sym package) (not (external-p sym)))
+	(setf- append list (get-objects-of-sym sym))))
+    (sort-objects list sort-compare)))
 
-;;Document system. (Needs to be scanned, will defaultly scan for you.)
-#|(defmethod document
-    ((sys asdf:system) way &key (level 1) (pre-scan t))
-  (when pre-scan
-    (scan-system sys))
-  (let ((pkgs
-	 (car (getf expr-scan::*system-packages*
-		    (intern (asdf:component-name sys))))))
-    (glist-list :series 
-		(mapcar (lambda (pkg)
-			  (document pkg t :level level ))
-			pkgs))))|#
+;;Documenting packages with contents.
 
-(defmethod document
-    ((system-symbol symbol) (way (eql :sys)) &key (level 1) (pre-scan t))
-  (document (asdf:find-system system-symbol) t
-	    :level level :pre-scan pre-scan))
+(def-document :whole ((package package)
+		      &key (sort-compare :alphabetic)
+		      with-descriptions with-shorts (with-full t)
+		      (also-internal *also-internal*))
+  (let*((name (give-name package))
+	(i-name (format nil "~a=internal" name)))
+    (flet ((doc (list &optional internal)
+	     (section *package-section-level* (if internal i-name name)
+		      (series (when internal "Internal of ")
+			      (document :title package))
+	       (document :description package)
+	       (when also-internal
+		 (if internal (p(b(link name "The external part.")))
+		     (p (link i-name "The internal part."))))
+	       (when *treat-dep*
+		 (p (document :dep package)))
+	       (when with-descriptions (document :descriptions list))
+	       (when with-shorts (document :short list))
+	       (when with-full   (document :full list)))))
+      (series
+       (doc (get-external-objects package sort-compare))
+       (when also-internal
+	 (doc (get-internal-objects package sort-compare) t))))))
+
+(def-document :pkg ((pkg-sym symbol) &key
+		    with-descriptions with-shorts (with-full t)
+		    also-internal)
+  "Document package of the name. 
+ (note that 'manner' here specifies what the object is whereas normally it\
+ specifies what to do with the object.)"
+  (document :whole (find-package pkg-sym)
+    :with-descriptions with-descriptions :with-shorts with-shorts
+    :with-full with-full :also-internal also-internal))
+
+;;TODO if you figure out systems, document via them?

@@ -13,7 +13,8 @@
   (:use :common-lisp :generic :gil :gil-share :gil-vars)
   (:export remove-gratuous-whitespace is-break
 	   *indent-delta* indent add-txt dump-txt
-	   wformat)
+	   wformat
+	   xml-surround)
   (:documentation "Some basic utility functions for manipulating strings,\
  writing."))
 
@@ -87,3 +88,11 @@
     (write-txt))
   (when newline (write-char #\Newline))
   (setq *have-txt* ""))
+
+(defun xml-surround-fn (with fill)
+  (wformat (if fill "<~a~a>" "<~a~a \>") with)
+  (when fill (funcall fill))
+  (wformat "</~a>" (subseq with 0 (position #\Space with))))
+
+(defmacro xml-surround (with &body body)
+  `(xml-surround-fn ,with (lambda () ,@body)))

@@ -121,3 +121,5 @@ way:
 (defmethod i-call (lang (fun function))
   (declare (ignore lang))
   (funcall fun))
+
+(declaim (inline call glist glist-list))

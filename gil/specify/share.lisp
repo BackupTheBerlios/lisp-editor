@@ -111,7 +111,8 @@ TODO implement.")
 
 (defclass section (header)
   ((name :initarg :name)
-   (title :initarg :title))
+   (title :initarg :title)
+   (description :initarg :description :initform "" :type string))
   (:documentation
    "Sections are titled parts, that might be paginated separately based on\
  their level."))
@@ -259,3 +260,8 @@ TODO implement.")
 ;(defmethod i-call (lang (sym (eql :table-of-contents)))
 ;  (declare (ignore lang))
 ;  (call(gil-contents:use-contents gil-info::*contents*)))
+
+(declaim 
+ (inline p series b i u p-code code quotation notable note comment
+	 url-link link-pos link lister point-list alt-point-list
+	 numbered-list header section table table-el col-table))

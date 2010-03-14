@@ -20,13 +20,19 @@ TODO needs to filter out whitespace gil-execute")
 (defvar *buffer-len* 1024)
 (defvar *buffer* (make-string *buffer-len*))
 
+(declaim (type fixnum *buffer-len*) (type string *buffer*))
+
 (defun gil-read-col (stream &key funlike)
+  (declare (type stream stream) (type boolean funlike))
   (collecting () (gil-read stream :fn #'collecting :funlike funlike)))
 
 (defun gil-read (stream &key fn (buf-i 0) (digit 0) funlike)
+  (declare (type stream stream) (type function fn) 
+	   (type fixnum buf-i digit) (type boolean funlike))
   (labels ((read-ch ()
 	     (read-char stream nil nil))
 	   (add-buffer (ch)
+	     (declare (type character ch))
 	     (setf (aref *buffer* buf-i) ch
 		   buf-i (+ buf-i 1))
 	     (when (= buf-i *buffer-len*)
@@ -46,6 +52,7 @@ TODO needs to filter out whitespace gil-execute")
 	     (values)))
     (do ((ch (read-ch) (read-ch)))
 	((not ch) (dump-buffer))
+      (declare (type (or character null) ch))
       (case ch
 	(#\(
 	 (dump-buffer)
@@ -98,9 +105,6 @@ TODO needs to filter out whitespace gil-execute")
 	          digit -1)))
 	 (add-buffer ch))))))
 
-(defpackage :gil-user
-  (:use :cl :gil :gils :gil-style :denest))
-
 (defun execute-file (file-name)
   (gil:glist-list :series
     (denest
@@ -133,24 +137,3 @@ TODO track checksums(keyword currently ignored), and relevant arguments.
      (execute-file from))
     (t
      (error "~a not recognized" from))))
-
- #|(defun gil-execute
-    (from-file &key (to-file "doc.html") (to-path ".")
-     (use-package '(:cl :gil :gils :gil-read))
-     (funcall t))
-  "Execute, but funcalls for you, and arguments set the special variables\
- accordingly."
-  (let*((*default-pathname-defaults*
-	 (pathname(format nil "~D~D"
-		    *default-pathname-defaults* to-path)))
-	(*standard-output*
-	 (open to-file :direction :output
-	       :if-does-not-exist :create :if-exists :supersede))
-	(pkg-name (format nil "gil-file-~a" from-file)))
-    (eval `(defpackage ,pkg-name (:use ,@use-package)))
-    (execute from-file :fn
-	     (lambda (item)
-	       (let ((evalled (eval `(progn (in-package ,pkg-name)
-					    ,item))))
-		 (if funcall (funcall evalled) evalled))))
-    (close *standard-output*)))|#

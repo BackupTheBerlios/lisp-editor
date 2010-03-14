@@ -14,7 +14,8 @@
 	:gil-output-util
 	:gil :gil-share :gil-style :gil-vars)
   (:documentation "Gil->html, not that the files linked internally are all 
-tracked by gil-info."))
+tracked by gil-info.")
+  (:export cur-link-url))
 
 (in-package :gil-html)
 
@@ -186,29 +187,34 @@ tracked by gil-info."))
   "TODO not very sturdy.."
   (substitute #\_ #\* (apply #'format `(nil ,link ,@args))))
 
-(def-glist (link follow-link) objects
-  (let*((name (gils::name link))
-	(page (gil-info::find-link-page name)))
-    (surround 
-	(typecase page
-	  (gil-info::link-entry ;TODO recognize current page.
-	   (let ((page (slot-value page 'gil-info::page)))
-	     (cond ;;NOTE _nasty_ if bugged!!!
-	       ((string= *cur-page* page)
-		(sanitized-link "a href=\"#~a\"" name))
-	       (t;(string= *cur-page* "")
-		(sanitized-link "a href=\"~a.html#~a\"" page name)))))
-	  (gil-info::url-entry
-	   (sanitized-link "a href=\"~a\""
-			   (slot-value page 'gil-info::url)))
-	  (null
-	   (sanitized-link "a href=\"~a.html\"" name))
-	  (t
-	   (error "~a" page)))
-      (call-list objects))))
+(defun cur-link-url (name &key (page (gil-info::get-link-page name)))
+  (typecase page
+    (gil-info::link-entry ;TODO recognize current page.
+     (let ((page (slot-value page 'gil-info::page)))
+       (cond ;;NOTE _nasty_ if bugged!!!
+	 ((string= *cur-page* page)
+	  (sanitized-link "#~a" name))
+	 (t;(string= *cur-page* "")
+	  (sanitized-link "~a.html#~a" page name)))))
+    (gil-info::url-entry
+     (slot-value page 'gil-info::url))
+    (null
+     (warn "Couldn't get page of ~s" (gil-info::link-to-keyword name))
+     (sanitized-link "~a.html" name))
+    (t
+     (error "~a" page))))
 
-(def-surrounding-glist (note link)
-    (sanitized-link "a name=\"~a\"" (gils::name note)))
+(def-glist (link follow-link) objects
+  (if (gils::name link)
+    (surround (format nil "a href=\"~a\"" (cur-link-url (gils::name link)))
+      (call-list objects))
+    (call-list objects)))
+
+(def-glist (link link) objects
+  (if (gils::name link) 
+    (surround (sanitized-link "a name=\"~a\"" (gils::name link))
+      (call-list objects))
+    (call-list objects)))
 
 (def-surrounding-glist (url url-link)
     (format nil "a href=\"~a\"" (gils::name url)))
@@ -244,6 +250,8 @@ tracked by gil-info."))
      ((> gils::level gils::*section-page-level*)
       (call (result)))
      (t
+      (assert gils::name nil ;TODO get around it?
+	      "To paginate a section, it _must_ have a name.")
       (let*((*cur-page*; (gils::intern* gils::name))
 	     (if-let path (gethash gils::name gils::*page-path*)
 	       (format nil "~a~a" path gils::name) ;Path specified.

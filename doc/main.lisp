@@ -2,8 +2,6 @@
 
 (require :more)
 (require :autodoc)
-(load "gil/tools/contents.lisp")
-(load "tools/autodoc.lisp") ;;TODO warnings
 
 (defun scan-stuff ()
   (let ((*default-pathname-defaults* 
@@ -22,7 +20,7 @@
 (scan-stuff)
 
 (defun package-link (pkg &rest objects)
-  (apply #'gil-autodoc:mention `(defpackage ,pkg ,@objects)))
+  (gil-autodoc:mention-package pkg (glist-list :series objects)))
 
 (defun mention+ (name &rest objects)
   "Mentions, assuming either function or variable and not ambiguous."
@@ -45,6 +43,21 @@
 			(glist (mk file-image ;
 			  :filename "http://developer.berlios.de/bslogo.php?group_id=0"))))))
 
+(print (gil-html:cur-link-url
+
+(let ((*lang* :html))
+  (call
+  (gil-autodoc:document
+   :full (expr-scan:access-result 'defvar '*attempt-readable*))))
+
+;(gil-autodoc::give-name (vector 'defvar 'gil-autodoc:*treat-args*))
+
+(maphash (lambda (k v)
+	   (print (list (package-stuff:to-package-name k) k v)))
+	 gil-info::*links*)
+
+(setq gil-info::*links* (make-hash-table))
+
 (defun mk-website ()
   "Makes the website. Only paginated stuff will appear as file, rest to\
  standard output."
@@ -53,7 +66,7 @@
 	(*attempt-readable* nil)
 	(gil-autodoc:*treat-args* nil)
 	(gil-autodoc:*treat-title* :title-args)
-	(gil-info::*links* (make-hash-table))
+;	(gil-info::*links* (make-hash-table))
 	(site-contents
 	 (gil-contents:use-contents
 	  (gil-info:gather-contents "../website.gil")
@@ -62,13 +75,17 @@
 	(autodoc
 	 (glist-list :series
 	   (mapcar (lambda (pkg)
-		     (gil-autodoc:document pkg :pkg :level 2))
+		     (gil-autodoc:document :pkg pkg))
 		   '(:generic :denest
 		     :package-stuff :expression-hook :expression-scan
-		     :autodoc-gil
-		     :gil :gil-share :gil-style 
-		     :gil-info :gil-read :gil-user
-		     :gil-html))))
+
+		     :gil :gil-vars :gil-share :gil-style
+		     :gil-read :gil-info :gil-user
+		     :gil-output-util :gil-html :gil-txt :gil-latex
+		     
+		     :gil-contents :gil-log
+		     
+		     :gil-autodoc))))
 	(autodoc-contents
 	 (gil-contents:use-contents
 	  (gil-info:gather-contents autodoc)
@@ -138,7 +155,7 @@
   (with-open-file (*standard-output* "cl-fad.txt"
     	     	    :direction :output :if-does-not-exist :create
 		    :if-exists :supersede)
-    (call (gil-autodoc:document :cl-fad :pkg :level 2))))
+    (call (gil-autodoc:document :pkg :cl-fad))))
 
 
 (with-open-file (*standard-output* "doc/autodoc/cl-fad.tex"
@@ -146,17 +163,14 @@
 		 :if-exists :supersede)
   (let ((gils::*section-page-level* 0)
 	(*lang* :latex))
-    (call (gil-autodoc:document :cl-fad :pkg :level 2))))
+    (call (gil-autodoc:document :pkg :cl-fad))))
 
 (with-open-file (*standard-output* "doc/autodoc/cl-fad.html"
 		 :direction :output :if-does-not-exist :create
 		 :if-exists :supersede)
   (let ((gils::*section-page-level* 0)
 	(*lang* :html))
-    (call (gil-autodoc:document :cl-fad :pkg :level 2))))
-
-(let ((*lang* :latex))
-  (call (section 3 "miauw" nil "KAKASAF " "agsgd  fas")))
+    (call (gil-autodoc:document :cl-fad :pkg 2))))
 
 (let ((*default-pathname-defaults*
        #p"/home/jasper/proj/lisp-editor/doc/")
@@ -168,3 +182,4 @@
 		     :if-exists :supersede)
     (call (gil-html::style))
     (call (execute "principles.gil"))))
+

@@ -50,9 +50,10 @@ Following are taken: function next, next, level, name, title, first"
 			  next
 			  &key ,@(cdr keyargs))
 	   (declare (ignorable next))
-	   (lambda (level name title &optional first)
+	   (lambda (level name title &optional description)
 	     (declare (ignorable level name first))
-	     (macrolet ((next () '(funcall next level name title first)))
+	     (macrolet ((next ()
+			  '(funcall next level name title description)))
 	       ,@body)))
       (push (cons name (copy-tree (cdr keyargs))) *c-el-keyargs*))))
 
@@ -173,7 +174,10 @@ The last element needs to be a raw c-el output, or nil which does\
      (treatment (c-el-seq :class-style :nbsp :prep :link)))
   "Produces contents page with element treated based treatment."
   (glist-list :series
-    (mapcar (lambda (el)
-	      (destructuring-bind (level name title &optional first) el
-		(apply treatment level name title first)))
+    (mapcar (lambda (section)
+	      (with-slots
+		    (gils::level gils::name gils::title gils::description) 
+		  section
+		(funcall treatment gils::level gils::name gils::title
+			 gils::description)))
 	    contents)))
