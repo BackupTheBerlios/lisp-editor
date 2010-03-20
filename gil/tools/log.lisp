@@ -10,7 +10,7 @@
 (cl:in-package :cl-user)
 
 (defpackage :gil-log
-  (:use :common-lisp :generic :log
+  (:use :common-lisp :alexandria :log
 	:gil :gil-read :gil-output-util)
   (:export write-rss execute-entry execute-entries-if)
   (:documentation "Extends log system for executing gil files and\
@@ -38,7 +38,7 @@ Keywords :all(default), :need-execute (changed after previous execution),
 	   (:never-executed
 	    (curry #'doesnt-have :last-execute-time))
 	   (:all
-	    (constant t))
+	    (gen:constant t))
 	   (:changed
 	    #'log:entry-changed-p)
 	   (:needs-execute
@@ -132,14 +132,14 @@ Keywords :all(default), :need-execute (changed after previous execution),
     (cl-fad:copy-file (rss-file) (format t "~a-backup" (rss-file))))
   (with-open-file (*standard-output* (rss-file))
     (xml-surround "title"
-      (if-let title (log-data :log-title)
+      (if-let (title (log-data :log-title))
 	(write-string title)
 	(warn "No title for RSS!")))
     (xml-surround "link"
       (write-string (or (log-data :log-link)
 			(error "Tried to write rss without link!"))))
     (xml-surround "description"
-      (when-let description (log-data :log-description)
+      (when-let (description (log-data :log-description))
 	(write-string description)))
     (xml-surround "pubDate"
       (write-string (written-time (log-data :last-rss-change))))

@@ -10,7 +10,7 @@
 (cl:in-package :cl-user)
 
 (defpackage gil-read
-  (:use :common-lisp :generic :denest)
+  (:use :common-lisp :alexandria :denest)
   (:documentation "Stream reader for GIL.
 TODO needs to filter out whitespace gil-execute")
   (:export gil-read execute))
@@ -74,7 +74,7 @@ TODO needs to filter out whitespace gil-execute")
 	 (return))
 	(#\\ ;Escape character.
 	 (setq funlike nil)
-	 (when-let ch (read-ch)
+	 (when-let (ch (read-ch))
 	   (add-buffer ch)))
 	(#\$ ;Force (nearly)regular lisp.
 	 (dump-buffer)
@@ -99,7 +99,7 @@ TODO needs to filter out whitespace gil-execute")
 	   ((< digit 0)
 	    (setf funlike nil))
 	   ((or (digit-char-p ch) (and (char= ch #\.) (> digit 0)))
-	    (setf- + digit 1))
+	    (gen:setf- + digit 1))
 	   (t
 	    (setf funlike nil
 	          digit -1)))

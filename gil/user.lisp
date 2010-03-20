@@ -11,7 +11,7 @@
 (cl:in-package :cl-user)
 
 (defpackage :gil-user
-  (:use :common-lisp :generic :denest
+  (:use :common-lisp :alexandria :denest
 	:gil :gil-vars :gil-share :gil-style :gil-read)
   (:export run-gil side-paned-page-handler)
   (:documentation "Package for the user of gil.."))
@@ -46,7 +46,7 @@ you used.)"
 		    :if-does-not-exist :create :if-exists :supersede))
    (let*((*lang* lang)
 	 (gil-info::*links*
-	  (if-use saved-links (make-hash-table)))
+	  (or saved-links (make-hash-table)))
 	 (gil-info::*contents*
 	  saved-contents))
      (assert (if saved-links saved-contents (not saved-contents))

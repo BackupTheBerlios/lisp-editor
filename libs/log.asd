@@ -6,6 +6,6 @@
 (defsystem :log
   :description "Logs files, when they change, allows to store."
   :serial t
-  :depends-on (:generic :cl-fad)
+  :depends-on (:alexandria :cl-fad)
   :components
   ((:file "log")))

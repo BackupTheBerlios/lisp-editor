@@ -28,8 +28,8 @@
 (defun mention+ (name &rest objects)
   "Mentions, assuming either function or variable and not ambiguous."
   (assert (not (keywordp name)))
-  (if-let mention (expr-scan:access-result
-		   '(defun defgeneric defmacro defvar defparameter) name)
+  (if-let (mention (expr-scan:access-result
+		    '(defun defgeneric defmacro defvar defparameter) name))
     (gil-autodoc:mention-obj mention objects)
     (u (string-downcase name))))
 
@@ -43,7 +43,7 @@
 ;<a href="http://developer.berlios.de">
 ;<img src="http://developer.berlios.de/bslogo.php?group_id=0" width="124" height="32" border="0" alt="BerliOS Logo" /></a> 
 		      (url-link "http://developer.berlios.de/"
-			(glist (mk file-image ;
+			(glist (gen:mk file-image ;
 			  :filename "http://developer.berlios.de/bslogo.php?group_id=0"))))))
 
 ;Note it has to be base-track, otherwise it is super of list, and it will 

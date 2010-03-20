@@ -48,9 +48,10 @@ Reserved is next, it calls the next method to be applied upon it."
     (assert
      (not(find-if (lambda (el) (eql (car el) cname)) *c-el-keyargs*)))
     (prog1 
-	`(defmethod c-el (,(if (symbolp name) `(,gname (eql ,name)) name)
-			  next
-			  &key ,@(cdr keyargs))
+	`(defmethod c-el
+	     (,(if (symbolp cname) `(,gname (eql ,cname)) cname)
+	      next
+	      &key ,@(cdr keyargs))
 	   (declare (ignorable next))
 	   (lambda (,level ,name ,title &optional ,description)
 	     (declare (ignorable ,level ,name ,description))

@@ -10,7 +10,7 @@
 (cl:in-package :cl-user)
 
 (defpackage :expression-hook
-  (:use :common-lisp :generic :denest :package-stuff)
+  (:use :common-lisp :alexandria :denest :package-stuff)
   (:nicknames :expr-hook)
   (:export expand expand-hook expand-mac *expression-hook*
 	   *base-macros* def-base-macro
@@ -94,7 +94,7 @@ Used for gathering information on code autodoc via expression-scan."))
    (if (null form) form)
   ;Apply possible symbol-macros.
    (if (symbolp form)
-     (if-let sm (assoc form *eh-sym-macs*)
+     (if-let (sm (assoc form *eh-sym-macs*))
        (caddr sm) form))
   ;Something need not care about.
    (if (not (listp form)) form)
@@ -111,16 +111,16 @@ Used for gathering information on code autodoc via expression-scan."))
 	     :test #'same-package)
      form)
   ;Possible macrolets.
-   (if-let m (assoc (car form) *eh-macs*)
+   (if-let (m (assoc (car form) *eh-macs*))
      (expand (funcall (cadr m) (cdr form))))
   ;Possible flets.
    (if (find (car form) *eh-funs*)
      `(,(car form) ,@(e-list (cdr form))))
   ;Base macros override existing macros.
-   (if-let bfn (gethash (car form) *base-macros*)
+   (if-let (bfn (gethash (car form) *base-macros*))
      (funcall bfn form))
   ;Regular macros.
-   (if-let mfn (macro-function (car form))
+   (if-let (mfn (macro-function (car form)))
      (if as-macrohook ;Macrohooks are picked up later.
        form
        (expand (funcall mfn form nil))))
@@ -147,6 +147,7 @@ Used for gathering information on code autodoc via expression-scan."))
 	(col-bind v) (col-var v))))))
 
 (def-base-macro let* (let* (&rest vars) &body body)
+  (assert (eql let* 'let*) nil "")
   (cond ((null vars)
 	 (expand `(progn ,@body)))
 	((null (cdr vars))
@@ -222,7 +223,8 @@ Used for gathering information on code autodoc via expression-scan."))
 		      (list (let ((*in-funs* (cons name *in-funs*)))
 			      (expand init))))
      ,@(when doc (list doc))))
-(def-base-macro parameter (defvar name &optional init doc)
+
+(def-base-macro defparameter (defvar name &optional init doc)
   `(,defvar ,name ,@(when init
 		      (list (let ((*in-funs* (cons name *in-funs*)))
 			      (expand init))))
@@ -253,6 +255,7 @@ Used for gathering information on code autodoc via expression-scan."))
 (def-base-macro macrolet (macrolet (&rest funs) &body body)
   "TODO *eh-funs* only good for labels.. 'flets shouldnt see eachother'"
   (multiple-value-bind (res names) (expand-funs funs :flat-arg t)
+    (declare (ignore res))
     (let ((*eh-macs*
 	   (append *eh-macs*
 	     (mapcar (lambda (name)

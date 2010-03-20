@@ -30,7 +30,7 @@
   "Registers a bunch of styles. Each style goes 
  (element-type (&optional name manners) &rest prop-val-pairs)
  Symbols that 'css would recognize' are done as css."
-  (setf- append *styles* styles) ;Add styles.
+  (gen:setf- append *styles* styles) ;Add styles.
   (glist-list :style-list styles))
 
 (defmethod i-glist (lang (way (eql :style-list)) (list list))

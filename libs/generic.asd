@@ -4,4 +4,5 @@
 (use-package '(:asdf))
 
 (defsystem :generic
-    :components ((:file "generic")))
+  :depends-on (:alexandria)
+  :components ((:file "generic")))

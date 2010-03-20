@@ -10,7 +10,8 @@
 (cl:in-package :cl-user)
 
 (defpackage :gil-info
-  (:use :common-lisp :generic :denest :gil :gil-vars :gil-share :gil-read)
+  (:use :common-lisp :alexandria
+	:denest :gil :gil-vars :gil-share :gil-read)
   (:export use-contents gather gather-contents
 	   link-to-url
 	   *contents* *notables* *enclosure* *comments-thread*)
@@ -100,7 +101,7 @@ Page ~a changed to page ~a."
 	 (mapcar #'call list))
 	(t ;Produces new page.
 	 (let ((gils::*cur-page*; (gils::intern* gils::name))
-		(if-let path (gethash gils::name gils::*page-path*)
+		(if-let (path (gethash gils::name gils::*page-path*))
 		  (format nil "~a~a" path gils::name) ;Path specified.
 		  gils::name)))
 	   (register-link gils::name)
@@ -141,7 +142,8 @@ Page ~a changed to page ~a."
       str)))
 
 (def-glist :notable objects
-  (push (mk notable :pos *cur-pos* :objects objects) *notables*)
+  (push (make-instance 'notable :pos *cur-pos* :objects objects)
+	*notables*)
   (call-list objects))
 
 (defvar *comments-thread* nil

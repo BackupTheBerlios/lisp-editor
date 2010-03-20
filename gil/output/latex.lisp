@@ -10,7 +10,7 @@
 (cl:in-package :cl)
 
 (defpackage gil-latex
-  (:use :common-lisp :generic :denest
+  (:use :common-lisp :denest
 	:gil-output-util
 	:gil :gil-vars :gil-share :gil-style)
   (:documentation "Latex output of General Interface Library/Language.

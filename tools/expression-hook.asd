@@ -16,6 +16,6 @@
  and must call further expand-hook.
 Used for gathering information on code autodoc via expression-scan."
   :serial t
-  :depends-on (:generic :denest
+  :depends-on (:alexandria :denest
 	       :lisp-ed-package-stuff :lisp-ed-file-stuff)
   :components ((:file "expression-hook")))

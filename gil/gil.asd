@@ -9,7 +9,7 @@
  system for different kinds of interface and markup.
 Probably good idea to use combined with denest."
   :serial t
-  :depends-on (:generic :denest :log :cl-fad)
+  :depends-on (:generic :alexandria :denest :log :cl-fad)
   :components (;Base stuff.
 	       (:module "specify"
 		:serial t

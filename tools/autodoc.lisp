@@ -10,7 +10,8 @@
 (cl:in-package :cl)
 
 (defpackage :gil-autodoc
-  (:use :common-lisp :generic :denest :package-stuff :file-stuff
+  (:use :common-lisp :alexandria :denest
+	:package-stuff :file-stuff
 	:gil :gil-share 
 	:expression-scan)
   (:export mention-obj mention mention-file
@@ -25,7 +26,7 @@ TODO messy file."))
 (in-package :gil-autodoc)
 
 (defun documentation* (of type)
-  (when-let docstr (documentation of type)
+  (when-let (docstr (documentation of type))
     docstr));TODO
 
 (defvar *autodoc-dir* ""
@@ -39,7 +40,7 @@ TODO implement")
   "Laboriously checks if symbol is external.. Aught to be better way.
 Probably will want document internal stuff too."
   (if (keywordp sym) t
-    (when-let pkg (symbol-package sym)
+    (when-let (pkg (symbol-package sym))
       (do-external-symbols (s pkg)
 	(when (eql s sym) (return-from external-p t))))))
 
@@ -51,7 +52,7 @@ Probably will want document internal stuff too."
 (defun base-package (symbol)
   "Packages one might hit, but usually isn't interested in.\
  (trees in the forest.)"
-  (find-if (curry #'same-package symbol) ;TODO SBCL specific.
+  (find-if (rcurry #'same-package symbol) ;TODO SBCL specific.
 	   '(:common-lisp :sb-impl :sb-int :sb-c :sb-pcl :sb-kernel)))
 
 (defvar *mentionable-dependency* (lambda (sym)
@@ -90,9 +91,9 @@ Probably will want document internal stuff too."
   "Mention a scanned CL statement."
   (declare (type list objects))
   (glist-list
-   (if-let name (when (or *also-internal* (external-p (name mentioned)))
-		  (give-name mentioned))
-     (mk follow-link :name name) :underlined)
+   (if-let (name (when (or *also-internal* (external-p (name mentioned)))
+		   (give-name mentioned)))
+     (make-instance 'follow-link :name name) :underlined)
    (or objects (list (string-downcase (name mentioned) :start start)))))
 
 (defun mention (type name &rest objects)
@@ -175,9 +176,9 @@ Probably will want document internal stuff too."
 	     (error "Found a list in a &rest.\
  (Should be your fault, does CL notice it? ~a" args))
 	    ((&key &optional)
-	     (if-let special-var
-	       (when (symbolp (cadr a))
-		 (access-result special-variable-makers (cadr a)))
+	     (if-let (special-var
+		      (when (symbolp (cadr a))
+			(access-result special-variable-makers (cadr a))))
 	       (series
 		"(" (string-downcase (car a))
 		(mention-obj
@@ -201,7 +202,7 @@ Got ~D here" allow-listing a))))
    (let ((cur "") need-mention))
    (collecting (nil deps)
      (dolist (sym list)
-       (when-let pkg (to-package-name sym)
+       (when-let (pkg (to-package-name sym))
 	 (cond
 	   ((and (string= pkg cur) need-mention)
 	    (collecting ", " (mention types sym)))
@@ -377,8 +378,8 @@ Got ~D here" allow-listing a))))
 		      expr-scan::paths)))))))
 
 (def-document :description ((package package) &key)
-  (if-let package-obj (access-result 'defpackage
-			  (intern (package-name package) :keyword))
+  (if-let (package-obj (access-result 'defpackage
+			  (intern (package-name package) :keyword)))
     (document :description package-obj)
     (documentation* package t)))
 
@@ -392,8 +393,8 @@ Got ~D here" allow-listing a))))
 		 (cdr uses))))))
 
 (def-document way ((package package) &key)
-  (when-let package-obj (access-result 'defpackage
-			  (intern (package-name package) :keyword))
+  (when-let (package-obj (access-result 'defpackage
+			   (intern (package-name package) :keyword)))
     (document way package-obj)))
 
 ;;Documenting lists of objects.
@@ -423,7 +424,7 @@ Got ~D here" allow-listing a))))
 
 (defun get-objects-of-sym (sym &optional (by-names *by-names*) list)
   (dolist (by-name by-names list) ;Collect externals.
-    (when-let res (access-result by-name sym)
+    (when-let (res (access-result by-name sym))
       (push res list))))
 
 (defun get-external-objects (package &optional (sort-compare :alphabetic))
@@ -431,14 +432,14 @@ Got ~D here" allow-listing a))))
   (let (list)
     (do-external-symbols (sym package)
       (when (same-package sym package)
-	(setf- append list (get-objects-of-sym sym))))
+	(gen:setf- append list (get-objects-of-sym sym))))
     (sort-objects list sort-compare)))
 
 (defun get-internal-objects (package &optional (sort-compare :alphabetic))
   (let (list)
     (do-symbols (sym package)
       (when (and (same-package sym package) (not (external-p sym)))
-	(setf- append list (get-objects-of-sym sym))))
+	(gen:setf- append list (get-objects-of-sym sym))))
     (sort-objects list sort-compare)))
 
 ;;Documenting packages with contents.

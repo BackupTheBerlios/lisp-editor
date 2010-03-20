@@ -12,7 +12,7 @@
 (cl:in-package :cl-user)
 
 (defpackage :gil-share
-  (:use :gil :gil-vars :common-lisp :generic)
+  (:use :common-lisp :alexandria :gil :gil-vars)
   (:nicknames :gils)
   (:export about-file
 
@@ -107,7 +107,7 @@ TODO implement.")
 
 (defun header (level &rest objects)
   "A title of a paragraph/other."
-  (glist-list (mk header :level level) objects))
+  (glist-list (make-instance 'header :level level) objects))
 
 (defclass section (header)
   ((name :initarg :name)
@@ -127,7 +127,7 @@ TODO implement.")
  a header."
   (if name
     (glist-list
-     (mk section :level level :name name :title (if-use title name))
+     (make-instance 'section :level level :name name :title (or title name))
      objects)
     (glist-list :series (cons (header level title) objects))))
 
@@ -143,14 +143,16 @@ TODO implement.")
 
 (defun link (link-name &rest objects)
   "Follow-link."
-  (glist-list (mk follow-link :name (intern* link-name :gil-share))
-	      (if-use objects (list (format nil "~a" link-name)))))
+  (glist-list (make-instance 'follow-link
+		:name (gen:intern* link-name :gil-share))
+	      (or objects (list (format nil "~a" link-name)))))
 
 ;;And link-positions; annotations that links can go there by some name.
 (defun link-pos (link-name &rest objects)
   "Adds a notation that links can go here."
-  (glist-list (mk link :name (intern* link-name :gils-share))
-	      (if-use objects
+  (glist-list (make-instance 'link :name (gen:intern* link-name
+						      :gils-share))
+	      (or objects
 		      (list (format nil "~a" link-name)))))
 
 (defclass url-link ()
@@ -161,8 +163,8 @@ TODO implement.")
 
 (defun url-link (name &rest objects)
   "Link to the outside with url. Avoid linking inside via url!"
-  (glist-list (mk url-link :name name)
-    (if-use objects
+  (glist-list (make-instance 'url-link :name name)
+    (or objects
 	    (list (format nil "~a" name)))))
 
 ;;Some declaims.
@@ -203,7 +205,7 @@ TODO implement.")
 
 (defun table (&rest elements)
   "Makes a table, table-elements allowed inside."
-  (glist-list (mk table) elements))
+  (glist-list (make-instance 'table) elements))
 
 (defun table-el (properties &rest contents)
   "Element for tables"
@@ -229,8 +231,7 @@ TODO implement.")
 (defun col-table (cols &rest list)
   "Column-table, elements specified per-colomn, table-el can still\
  override. Cols is keyword arguments for making an table-el"
-  (glist (mk col-table :cols cols)	 
-	 list))
+  (glist-list (make-instance 'col-table :cols cols) list))
 
 ;Default behavior of col-table via regular table.
 (defmethod i-glist (lang (table col-table) (list list))

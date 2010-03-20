@@ -10,7 +10,7 @@
 (cl:in-package :cl)
 
 (defpackage gil-txt
-  (:use :common-lisp :generic
+  (:use :common-lisp
 	:gil-output-util
 	:gil :gil-vars :gil-share :gil-style)
   (:documentation "Text output of General Interface Library/Language.
@@ -56,7 +56,7 @@ TODO not tested very deeply."))
 
 (def-glist (sym symbol) list
   (let ((*indent-depth* (+ *indent-depth* 1)))
-    (i-glist *lang* (mk lister :style sym) list)))
+    (glist-list (make-instance 'lister :style sym) list)))
 #|
  (defun numbered-list-raw
     (list &key (n 1) (prep "") long-numbers

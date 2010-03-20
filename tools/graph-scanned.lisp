@@ -10,11 +10,12 @@
 (cl:in-package :cl-user)
 
 (defpackage :graph-scanned
-  (:use :common-lisp :generic :package-stuff
+  (:use :common-lisp :alexandria :package-stuff
 	:cl-dot :expression-scan :gil-autodoc)
   (:export )
   (:documentation 
    "Uses cl-dot to graph the objects.
+NOTE still in development, some 'playing' in it.
 TODO: 
 * Determine if connections are to be expected depending on context.
 * work it into the autodoc"))
@@ -35,25 +36,23 @@ TODO:
     ((graph (eql 'graph-scanned)) (method track-method))
   (make-instance 'node :attributes '(:label ".")))
 
-(defun boring-link (sym in-package)
-  "Whether a link is uninteresting. (As-in water under the bridge,)"
-  (case in-package
-    (:generic ;Generic is interesting inside.
-     nil)
-    (:denest ;Generic is interesting inside.
-     nil)
-    (t ;;Generic is always boring seen from outside.
-     (case (package-keyword sym)
-       (:generic t) (:denest t)
-       (t (eql sym 'gil:mk))))))
 
 (defun package-keyword (sym)
   (intern (to-package-name sym) :keyword))
 
+(defun boring-link (sym in-package)
+  "Whether a link is uninteresting. (As-in water under the bridge,)"
+  (case in-package
+    ((:generic :denest) ;Generic is interesting inside.
+     nil)
+    (t ;;Generic is always boring seen from outside.
+     (case (package-keyword sym)
+       (:generic t) (:denest t)))))
+
 (defun when-access (defined-by in-package)
   (lambda (sym)
     (mapcan (lambda (def)
-	      (when-let got (access-result def sym)
+	      (when-let (got (access-result def sym))
 		(unless (boring-link sym in-package)
 		  (list got))))
 	    defined-by)))

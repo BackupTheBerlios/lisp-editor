@@ -10,7 +10,7 @@
 (cl:in-package :cl-user)
 
 (defpackage gil-html
-  (:use :common-lisp :generic :denest 
+  (:use :common-lisp :alexandria :denest 
 	:gil-output-util
 	:gil :gil-share :gil-style :gil-vars)
   (:documentation "Gil->html, not that the files linked internally are all 
@@ -145,7 +145,7 @@ tracked by gil-info.")
 
 (def-glist (style symbol) list
   (unless (null list)
-    (call(glist-list (mk lister :style style) list))))
+    (call(glist-list (make-instance 'lister :style style) list))))
 
 ;;Lister here recognizes for styles (corresponding CSS.):
 ;;  none, circle, disc, square
@@ -176,7 +176,7 @@ tracked by gil-info.")
 	   (surround "li" (call el)))))))
 
 (def-glist :descriptions list ;List of descriptions.
-  (call (glist-list (mk table)
+  (call (glist-list (make-instance 'table)
 	  (mapcar (lambda (el)
 		    (b(car el)) (glist-list :series (cdr el)))
 		  list))))
@@ -253,12 +253,12 @@ tracked by gil-info.")
       (assert gils::name nil ;TODO get around it?
 	      "To paginate a section, it _must_ have a name.")
       (let*((*cur-page*; (gils::intern* gils::name))
-	     (if-let path (gethash gils::name gils::*page-path*)
+	     (if-let (path (gethash gils::name gils::*page-path*))
 	       (format nil "~a~a" path gils::name) ;Path specified.
 	       gils::name))
 	    (*default-pathname-defaults*
-	     (if-use (gethash gils::name gils::*page-path*)
-		     *default-pathname-defaults*)))
+	     (or (gethash gils::name gils::*page-path*)
+		 *default-pathname-defaults*)))
 	(with-open-file
 	    (*standard-output* (sanitized-link "~a.html" gils::name)
 		:direction :output
@@ -307,19 +307,19 @@ tracked by gil-info.")
 	       (append
 		(tagdata gils::x-size "width")
 		(tagdata gils::y-size "height")
-		(when-let align
-		    (case gils::x-align
-		      ((:low :left) "left")
-		      ((:high :right) "right")
-		      ((:center) "center")
-		      ((:justify) "center"))
+		(when-let (align
+			   (case gils::x-align
+			     ((:low :left) "left")
+			     ((:high :right) "right")
+			     ((:center) "center")
+			     ((:justify) "center")))
 		  (list-format "align=\"~a\"" align))
-		(when-let valign
-		    (case gils::y-align
-		      ((:low :bottom) "bottom")
-		      ((:high :top) "top")
-		      ((:center :middle) "middle")
-		      ((:baseline) "baseline"))
+		(when-let (valign
+			   (case gils::y-align
+			     ((:low :bottom) "bottom")
+			     ((:high :top) "top")
+			     ((:center :middle) "middle")
+			     ((:baseline) "baseline")))
 		  (list-format "valign=\"~a\"" valign))
 		(tagdata gils::x-span "colspan")
 		(tagdata gils::y-span "rowspan")))

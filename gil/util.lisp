@@ -10,7 +10,7 @@
 (cl:in-package :cl)
 
 (defpackage gil-create-util
-  (:use :common-lisp :generic :gil :gil-share)
+  (:use :common-lisp :gil :gil-share)
   (:export timestep *timestamp*)
   (:documentation "For creating stuff."))
 

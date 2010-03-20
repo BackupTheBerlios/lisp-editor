@@ -48,7 +48,7 @@
   "Finds a place to split a line."
   (do ((i (length str) (position-if #'is-break str :from-end t :end i)))
       ((or (null i) (< i (* split-ratio line-len)))
-       (if-use i line-len))))
+       (or i line-len))))
 
 (defun string>-modulo (str-a str-b)
   "String> modulo non-alphanumeric."

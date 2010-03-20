@@ -10,7 +10,7 @@
 (cl:in-package :cl-user)
 
 (defpackage :gil-vars
-  (:use :gil :common-lisp)
+  (:use :common-lisp :gil)
   (:export *author*
    *handle-page* *link-page-style*
    *section-page-level* *section-level-modifier*

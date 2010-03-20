@@ -10,7 +10,7 @@
 (cl:in-package :cl-user)
 
 (defpackage :gil
-  (:use :common-lisp :generic)
+  (:use :common-lisp :alexandria)
   (:export *lang*
 	   def-glist def-call
 	   glist glist-list
@@ -37,8 +37,7 @@ so they're applicable to multiple implementations."))
 	  "Demand that packages defining outputs are named GIL-..name..")
   (intern (subseq pkg-name 4) (find-package :keyword)))
 
-;;-------------------List-like objects--------------------------------------
-
+;;Glist
 (defgeneric i-glist (lang way things)
   (:documentation "See glist."))
 
@@ -79,8 +78,7 @@ way:
   (error "Don't know what went wrong.
 ~a ~a ~a ~a" lang way things (type-of things)))
 
-;;Applying
-
+;;Applying; call
 (defgeneric i-call (lang thing)
   (:documentation "Write the stuff."))
 

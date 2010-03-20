@@ -10,7 +10,7 @@
 (cl:in-package :cl-user)
 
 (defpackage :log
-  (:use :common-lisp :generic :cl-fad)
+  (:use :common-lisp :alexandria)
   (:export *log-file* log-data *log-entries*
            read-log write-log with-log
 	   with-entry-access access filename seen-date had-timestamp
@@ -32,7 +32,7 @@ Write-log writes the all of *log-file*"))
 
 (defun read-log (&optional (log-file *log-file*))
   "Reads/initias log."
-  (unless (file-exists-p log-file)
+  (unless (cl-fad:file-exists-p log-file)
     (setq *log-data* nil *log-entries* nil)
     (return-from read-log (values)))
   (with-open-file (stream log-file :direction :input)
@@ -50,16 +50,16 @@ Write-log writes the all of *log-file*"))
 		   :if-exists :supersede :if-does-not-exist :create)
     (print *log-file* stream)
     (print *log-data* stream)
-    (mapcar (curry #'print stream) *log-entries*))
+    (mapcar (rcurry #'print stream) *log-entries*))
   (values))
 
 (defmacro with-log ((&key log-file)
 		    &body body)
   "Read, do some stuff, write again, with all variables isolated within."
   `(let (*log-entries* *log-data*)
-     (read-log ,@(or-list log-file))
+     (read-log ,@(when log-file (list log-file)))
      (prog1 (progn ,@body)
-       (write-log ,@(or-list log-file)))))
+       (write-log ,@(when log-file (list log-file))))))
 
 (defun add-entry (file-namestring &key (time (get-universal-time)))
   "Reads new entries in a directory. (Make sure read-log been called)"
@@ -72,10 +72,10 @@ Write-log writes the all of *log-file*"))
 (defun add-new-entries
     (dirname &key recursive (max-depth 100) (time (get-universal-time)))
   "Reads new entries in a directory. (Make sure read-log been called)"
-  (dolist (path (list-directory dirname))
-    (if (directory-pathname-p path)
+  (dolist (path (cl-fad:list-directory dirname))
+    (if (cl-fad:directory-pathname-p path)
       (when (and recursive (> max-depth 0))
-	(read-new-entries path :recursive t :max-depth (- max-depth 1)))
+	(add-new-entries path :recursive t :max-depth (- max-depth 1)))
       (add-entry (file-namestring path) :time time))))
 
 (defmacro with-entry-access (entry &body body)

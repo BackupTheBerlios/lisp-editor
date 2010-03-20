@@ -12,7 +12,7 @@
 ;TODO how is it printing?!?!?
 (defpackage :expression-scan
   #+lispworks (:import-from #:lispworks #:compiler-let)
-  (:use :common-lisp :generic :package-stuff :expression-hook)
+  (:use :common-lisp :alexandria :generic :package-stuff :expression-hook)
   (:nicknames :expr-scan)
   (:export add-scanner-fun def-scanner ;TODO are all these needed?
 	   fun-scanner
@@ -35,9 +35,9 @@
 Any s-expression can be tracked. (So macros and functions can be tracked.)
 "))
 
-;;TODO reader-macro to try fish out some comments?
-
 (in-package :expression-scan)
+
+;;TODO reader-macro to try fish out some comments?
 
 (defvar *cur-file* nil
   "Current file being scanned.")
@@ -96,14 +96,14 @@ Providing a list of fun-names will search them in sequence."
 (defvar *ignore-packages* (list :sb-impl :sb-int :sb-c :sb-pcl :sb-kernel))
 
 (def-scanner in-package (name)
-  (if-let to-package (find-package name)
+  (if-let (to-package (find-package name))
     (setq *package* to-package)
     (progn
       (warn "Couldn't find package for ~a. It might not have been loaded.
 Discontinued scan."
 	    name)
       (setq expr-hook::*discontinue* t)))
-  (when-let tracker (access-result 'defpackage (to-keyword name))
+  (when-let (tracker (access-result 'defpackage (intern* name :keyword)))
     (multiple-value-bind (path file) (cur-file)
       (pushnew (format nil "~a~a" path file) (slot-value tracker 'paths)
 	       :test 'equalp)))
@@ -116,14 +116,14 @@ Discontinued scan."
     (funcall fn expr))
   (or
    (when (and expr (listp expr)) ;See if any trackers for it.
-     (when-let fn (gethash (car expr) *fun-scan*)
+     (when-let (fn (gethash (car expr) *fun-scan*))
        (funcall fn expr))) ;Trackers need to expand-hook, (otherwise stops.)
    (expand-hook expr))) ;Otherwise expand-hook itself.
 
 (defun scan-macrohook (expander form env)
   "Function for in *macroexpand-hook*, doesn't make a nearly as complete\
  scan, but will work with regular loading."
-  (when-let fn (gethash (car form) *fun-scan*)
+  (when-let (fn (gethash (car form) *fun-scan*))
     (funcall fn form))
   (funcall expander form env))
 
@@ -274,7 +274,7 @@ Discontinued scan."
   ;Make it, if methods already existed, incorporate.
   (setf (access-result 'defgeneric name)
 	(make-instance 'track-generic :form expr
-	  :methods (when-let prev (access-result 'defgeneric name)
+	  :methods (when-let (prev (access-result 'defgeneric name))
 		     (slot-value prev 'methods))))
   expr)
 
@@ -291,6 +291,7 @@ Discontinued scan."
 	((listp args/dstr)
 	 (values args/dstr dstr/body body))
 	(t                 (error "")))
+    (declare (ignore body))
     (let((gen
 	  (or ;Automatically makes a generic if not scanned.
 	   (access-result 'defgeneric name)
@@ -333,15 +334,16 @@ fun-dep and var-dep for initform!"))
     (case (car a)
       (inline
 	(dolist (sym (cdr a))
-	  (when-let result (access-result '(defun defgeneric defmacro) sym)
+	  (when-let (result
+		     (access-result '(defun defgeneric defmacro) sym))
 	    (setf (track-data result :inline) t))))
       (type
        (dolist (sym (cddr a))
-	 (when-let result (access-result '(defvar defparameter) sym)
+	 (when-let (result (access-result '(defvar defparameter) sym))
 	   (setf (slot-value result 'type) (cadr a)))))
       (ftype ;Note: a little code repeat here.
        (dolist (sym (cddr a))
-	 (when-let result (access-result '(defun defgeneric defmacro) sym)
+	 (when-let (result (access-result '(defun defgeneric defmacro) sym))
 	   (setf (slot-value result 'type) (cadr a)))))))	 
   (expand-hook expr))
 
