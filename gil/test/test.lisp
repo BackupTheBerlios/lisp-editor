@@ -4,6 +4,8 @@
   (:use :cl :gil :gil-share)
   (:documentation "Use-testing of gil stuff."))
 
+;;Messy bunch
+
 (in-package :gil-test)
 
 (defun test (&key (lang :txt) standard-output
@@ -11,7 +13,7 @@
 		       (make-string-output-stream))))
   (let ((*lang* lang) (*standard-output* output))
     (funcall
-     (glist :series
+     (series
       (header 2 "Loose header")
       "Really long texts that continues on and on and on and on on and on and on and on and on and on and on and on and on and on and on and on and on and on and on and on and on."
       (section 1 "Main" "Main"
@@ -40,3 +42,33 @@ with two lines"))
 (with-open-file (str "first.txt" :direction :output
 		 :if-does-not-exist :create :if-exists :supersede)
   (test :lang :txt :output str))
+
+(defun test (&key (lang :txt) standard-output
+	     (output (if standard-output *standard-output*
+		       (make-string-output-stream))))
+  (let ((*lang* lang) (*standard-output* output))
+    (funcall
+     (p
+      (header 2 "Loose header")
+      (section 1 "Main" "Main"
+	       "This is a text in a section. " "And some more."
+	       (point-list
+		"Item" "Item" "Item" 
+		(alt-point-list "A" "B" "C")
+"Last item
+with two lines"))
+      (p (b "brains") " eat them. ")
+      (p (b "Eat them good")". " "Cookies too!")))
+    (get-output-stream-string output)))
+
+(test)
+
+(let ((*lang* :html))
+  (funcall
+   (p
+    (header 2 "Loose header")
+    (section 1 "Main" "Main"
+	     "This is a text in a section. " (b "And some more.")
+	     (point-list
+	      "Item" "Item" "Item" 
+	      (alt-point-list "A" "B" "C"))))))
