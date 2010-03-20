@@ -4,7 +4,11 @@ $(gil-style:register-style
 a:link{color:\#00f0ff;text-decoration:none;}
 a:visited{color:#70a0ff;text-decoration:none;}
 a:link:hover{text-decoration:underline}
-a:visited:hover{text-decoration:underline}")
+a:visited:hover{text-decoration:underline}
+
+h4{line-height:1%}
+h2{line-height:100%}
+h3{line-height:100%}")
 
 (section 1 $"Intro" #(Intro)
   Lisp-ed was originally a project to make a new lisp-editor. However, i

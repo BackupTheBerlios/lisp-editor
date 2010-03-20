@@ -12,7 +12,7 @@
 ;TODO how is it printing?!?!?
 (defpackage :expression-scan
   #+lispworks (:import-from #:lispworks #:compiler-let)
-  (:use :cl :generic :package-stuff :expression-hook)
+  (:use :common-lisp :generic :package-stuff :expression-hook)
   (:nicknames :expr-scan)
   (:export add-scanner-fun def-scanner ;TODO are all these needed?
 	   fun-scanner
@@ -25,6 +25,7 @@
 	   base-track typed-track depend-track
 	   track-fun track-var
 	   track-form track-generic track-method
+	   track-package
 	   
 	   track-data
 	   type name args init fun-dep var-dep flet-dep var-dep other
@@ -38,13 +39,23 @@ Any s-expression can be tracked. (So macros and functions can be tracked.)
 
 (in-package :expression-scan)
 
+(defvar *cur-file* nil
+  "Current file being scanned.")
+(defvar *cur-path* nil
+  "Current path being scanned.")
+
+(defun cur-file ()
+  "Attempts to get current file being scanned."
+  (values (or *cur-path* *load-pathname* *compile-file-pathname*)
+	  (or *cur-file* *load-truename* *compile-file-truename*)))
+
 (defvar *fun-scan* (make-hash-table)
   "Scanners for the different macros/functions under observation.")
 (defparameter *additional-scan* (list)
   "List of functions for scanning besides every expression.\
  (Rather then fun-scan, elements of which only scan specific macros.")
 
-(defvar *reading-myself* nil)
+(defvar *reading-myself* nil) ;;TODO unclear.
 
 (defgeneric name (obj) (:documentation "Gets name of object."))
 
@@ -92,6 +103,10 @@ Providing a list of fun-names will search them in sequence."
 Discontinued scan."
 	    name)
       (setq expr-hook::*discontinue* t)))
+  (when-let tracker (access-result 'defpackage (to-keyword name))
+    (multiple-value-bind (path file) (cur-file)
+      (pushnew (format nil "~a~a" path file) (slot-value tracker 'paths)
+	       :test 'equalp)))
   expr)
 
 ;;The scanner hook. ;TODO scan asdf stuff.
@@ -118,9 +133,11 @@ Discontinued scan."
 		       (expression-hook #'scan-expression-hook))
   "Scans a file as source code in order to document it."
   (if (or (stringp stream) (pathnamep stream))
-    (with-open-file (stream stream)
-      (scan-file stream
-		 :*package* *package* :expression-hook expression-hook))
+    (let ((*cur-file* stream)
+	  (*cur-path* *default-pathname-defaults*))
+      (with-open-file (stream stream)
+	(scan-file stream
+		   :*package* *package* :expression-hook expression-hook)))
     (let ((expr-hook::*discontinue* nil)
 	  (*expression-hook* expression-hook)
 	  (*reading-myself* t))
@@ -174,11 +191,14 @@ Discontinued scan."
 	(make-instance class :form expr))
   (expand-hook expr))
 
+(defclass track-package (track-form)
+  ((paths :initarg :parts :initform nil :type list)))
+
 (def-scanner defpackage (name &rest rest)
   (let ((name (typecase name ;Always in keyword.
 		(string (intern name :keyword))
 		(symbol (intern (symbol-name name) :keyword)))))
-    (form-scanner `(defpackage ,name ,@rest)))
+    (form-scanner `(defpackage ,name ,@rest) :class 'track-package))
   expr)
 
 ;;Data tracker for functions and macros.
@@ -214,7 +234,6 @@ Discontinued scan."
 (add-scanner-fun 'defun #'fun-scanner)
 (add-scanner-fun 'defmacro #'fun-scanner)
 
-(setq *additional-scan* nil)
 (labels ((add-dep-to-tracker (tracker expr)
 	   (unless tracker (return-from add-dep-to-tracker))
 	   (with-slots (var-dep fun-dep) tracker
@@ -222,9 +241,8 @@ Discontinued scan."
 	       (symbol ;Register var/parameter useages. 
 		(when (and (not (assoc expr *eh-sym-macs*))
 			   (or (access-result 'defvar expr)
-			       (access-result 'defparameter expr))
-			   (find expr var-dep))
-		  (push expr var-dep)))
+			       (access-result 'defparameter expr)))
+		  (pushnew expr var-dep)))
 	       (list ;Register function/macro useages.
 ;External flets and lets don't count. TODO They should..
 		(let ((name (car expr)))
@@ -275,7 +293,7 @@ Discontinued scan."
 	(t                 (error "")))
     (let((gen
 	  (or ;Automatically makes a generic if not scanned.
-   (access-result 'defgeneric name)
+	   (access-result 'defgeneric name)
 	   (setf (access-result 'defgeneric name)
 		 (make-instance 'track-generic
 		   :form `(defgeneric ,name (,@(mapcar #'delist args))

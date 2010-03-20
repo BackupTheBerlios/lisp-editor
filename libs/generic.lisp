@@ -6,7 +6,7 @@
 (defpackage :generic
   (:nicknames :gen)
   (:use :common-lisp)
-  (:export sqr delist intern*
+  (:export sqr delist intern* to-keyword
 
 	   constant curry curry-l compose-rest
 	   
@@ -17,7 +17,7 @@
 	   string-case
 	   clamp
 
-	   with-mod-slots
+	   mk with-mod-slots
 	   with-access with-mod-access
 	   
 	   with-stream
@@ -42,6 +42,14 @@
 				(find-package pkg)
 				:keyword))
       x))
+
+(defun to-keyword (name)
+  (if (keywordp name) name
+    (intern (typecase name
+	      (string name)
+	      (symbol (symbol-name name))
+	      (t (error "How to convert ~a to keyword?" name)))
+	    :keyword)))
 
 ;(defun subseq* (..
 
@@ -122,6 +130,10 @@ Have become increasingly comfortable with just using or in this case."
   (cond ((< clamped from) from)
 	((> clamped to)   to)
 	(t                clamped)))
+
+(defmacro mk (type &rest args)
+  "Macro to shorten up make-instance."
+  `(make-instance ',type ,@args))
 
 (defmacro with-mod-slots (mod (&rest slots) object &body body)
   "WITH-SLOTS, but requires something to be prepended to the\

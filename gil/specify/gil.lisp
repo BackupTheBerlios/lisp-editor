@@ -11,7 +11,7 @@
 
 (defpackage :gil
   (:use :common-lisp :generic)
-  (:export mk *lang*
+  (:export *lang*
 	   def-glist def-call
 	   glist glist-list
 	   call call-list)
@@ -27,10 +27,6 @@ A lot of the defvars are some things implementors can hang on to,
 so they're applicable to multiple implementations."))
 
 (in-package :gil)
-
-(defmacro mk (type &rest args)
-  "Macro to shorten up make-instance."
-  `(make-instance ',type ,@args))
 
 (defvar *lang* nil
   "Current language to convert too.")

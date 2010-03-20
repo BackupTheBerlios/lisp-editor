@@ -100,7 +100,7 @@ $(progn
    special variables, notably, for instance, (mention+ $'*lang*),
    but also other special variables that might be used in both 
    document creation and output. The nature of special variables allow for 
-   a lot here. A few examples:
+   a lot here.
 
    (section 4 $"output-special-var" 
         #(Example of special variable used in output-time)
@@ -129,16 +129,25 @@ $(progn
       However perhaps this function should be specific to this website, it
       is a trivial combination of elements, providing too many functions
       that compose stuff from them might prevent users from learning to 
-      compose themselves.))
+      compose themselves.)))
 
-   (section 4 $"creation-special-var"
-         #(Examples of a special variables used in creation-time.)
-     Simple instances are the special variables specifying how to 
-     autodocument, autodoc-gil, like
-    (mention+ $'gil-autodoc:*treat-title*)\(how to treat title part of documentation of things\),
-    (mention+ $'gil-autodoc:*treat-dep*)\(how to document dependencies of things\), the other 
-    *treat..*s, and (mention+ $'gil-autodoc:*mentionable-dependency*) which determines when a 
-    dependency is water under the bridge, or something to be noted.))
+  (section 3 $"Other ways to prepare" $nil
+    Sometimes the 'preparation' if one wants to customize much can consist
+     of defining ones own methods, possibly with macros/functions to help 
+     you do so.
+
+    (p For instance for contents package, there is	  
+      (mention+ $'def-c-el), with which you can either build from the given 
+      elements, or make something from the bottom up. (note the latter is 
+   handy if you feel it is not worth the time to absorb he idea behind 
+   composing c-el, or if what you want hasn't been created yet.))
+
+    (p Another instance is (mention+ $'expr-scan:def-scanner defining your
+     own expression scanner), and accompanying 
+  (mention+ $'gil-autodoc:def-document documenter.))
+
+    (p Of course, some of this might sound like being too involved for many,
+       we should provide a bunch of stuff more based on parameters.))
   
  (link-pos $"principle-note-1" (b *): Admittedly this deserves a whole essay 
    on its own. It isn't new at all either, you can search code=data.

@@ -11,7 +11,7 @@
 
 (defpackage :gil-contents
   (:use :common-lisp :gil :gil-share :gil-style)
-  (:export c-el c-el-seq use-contents)
+  (:export def-c-el c-el c-el-seq use-contents)
   (:documentation "Tool to make contents from information contained in 
 gil-info::*contents* after gil-executed with *lang* is :info.
 
@@ -29,64 +29,68 @@ Function gather-contents will do the scan :info does and provide input\
 
 (defgeneric c-el (name next &key)
   (:documentation "Contents-element. Helps in determining how to treat\
- elements when summarizing a contents page."))
+ elements when summarizing a contents page.
+It must output a function with arguments (level name title description)"))
 
 (defmethod c-el (name next &key)
   (error "Content element not recognized: ~s" name))
 
 (defparameter *c-el-keyargs* nil)
 
-(defmacro def-c-el (name (&rest keyargs) &body body)
+(defmacro def-c-el (cname (level name title description)
+		         (&rest keyargs) &body body)
   "Defines contents-element maker. (no &key before keyargs needed 
-Following are taken: function next, next, level, name, title, first"
+Reserved is next, it calls the next method to be applied upon it."
   (let ((gname (gensym)))
     (setf *c-el-keyargs*
 	  (remove-if (lambda (el)
-		       (eql (car el) name)) *c-el-keyargs*))
+		       (eql (car el) cname)) *c-el-keyargs*))
     (assert
-     (not(find-if (lambda (el) (eql (car el) name)) *c-el-keyargs*)))
+     (not(find-if (lambda (el) (eql (car el) cname)) *c-el-keyargs*)))
     (prog1 
 	`(defmethod c-el (,(if (symbolp name) `(,gname (eql ,name)) name)
 			  next
 			  &key ,@(cdr keyargs))
 	   (declare (ignorable next))
-	   (lambda (level name title &optional description)
-	     (declare (ignorable level name first))
-	     (macrolet ((next ()
-			  '(funcall next level name title description)))
+	   (lambda (,level ,name ,title &optional ,description)
+	     (declare (ignorable ,level ,name ,description))
+	     (flet ((next ()
+		      (funcall next ,level ,name ,title ,description)))
+	       (declare (ignorable #'next))
 	       ,@body)))
-      (push (cons name (copy-tree (cdr keyargs))) *c-el-keyargs*))))
+      (push (cons cname (copy-tree (cdr keyargs))) *c-el-keyargs*))))
 
 (defun c-el-id (level name title &optional first)
   (declare (ignore level name first))
   title)
 
-;TODO goddamn what is asdf's problem?
-(def-c-el :id () ;This one does nothing.
+(def-c-el :id (level name title description) () ;This one does nothing.
   title)
-(def-c-el :identity ()
+(def-c-el :identity (level name title description) ()
   title)
 
-(def-c-el :level-filter (&key (from 0) (to 2))
+(def-c-el :level-filter (level name title description)
+    (&key (from 0) (to 2))
   "Filters out everything above some level. Use before anything else."
   (when (<= from level to) (next)))
 
-(def-c-el :prep (&key (prep :bull) (prep-from 2) (prep-to 2))
+(def-c-el :prep (level name title description)
+    (&key (prep :bull) (prep-from 2) (prep-to 2))
   "Prepends something to element."
   (if (<= prep-from level prep-to)
     (series prep (next))
     (next)))
 
-(def-c-el :header 
-  (&key (give-level (lambda (level)
-		      (values (+ level 1) (* 2 (- level 1))))))
+(def-c-el :header (level name title description)
+    (&key (give-level (lambda (level)
+			(values (+ level 1) (* 2 (- level 1))))))
   "Make contents with a series of various headers. 
 give-level also provides a nonbreaking-space count."
   (multiple-value-bind (level nbsp-cnt) (funcall give-level level)
     (header (funcall give-level level)
 	    (make-nbsp nbsp-cnt) (next))))
 
-(def-c-el :nbsp
+(def-c-el :nbsp (level name title description)
     (&key (nbsp-increment 3)
           (give-nbsp-cnt (lambda (level) (* nbsp-increment (- level 1)))))
   "Makes a contents page just by making newlines nonbreaking spaces."
@@ -97,7 +101,7 @@ give-level also provides a nonbreaking-space count."
 
 (defvar *default-style-sizes*
   (vector 200 150 100 70 50 30 20 20 20 20 20 20 20))
-(def-c-el :inline-style
+(def-c-el :inline-style (level name title description)
     (&key (style-array *default-style-sizes*)
           (style (lambda (level)
 		   (format nil "font-size:~a%" (aref style-array level)))))
@@ -113,7 +117,7 @@ give-level also provides a nonbreaking-space count."
 		  (format nil "._cf~a{font-size:~a%}" l el)))
 	 style-array)))
 
-(def-c-el :class-style
+(def-c-el :class-style (level name title description)
     (&key (style (lambda (level)
 		   (format nil "_cf~a" level))))
   "Adds a style to contents via references to classes. 
@@ -121,7 +125,7 @@ Defaultly named _cf~a with ~a filled with header level"
   (gil-style:refer-style (funcall style level)
     (next)))
 
-(def-c-el :link ()
+(def-c-el :link (level name title description) ()
   (link name title))
 
 (defmacro c-el-seq (&rest els)

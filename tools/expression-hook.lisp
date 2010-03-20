@@ -10,11 +10,12 @@
 (cl:in-package :cl-user)
 
 (defpackage :expression-hook
-  (:use :cl :generic :denest :package-stuff)
+  (:use :common-lisp :generic :denest :package-stuff)
   (:nicknames :expr-hook)
   (:export expand expand-hook expand-mac *expression-hook*
 	   *base-macros* def-base-macro
-	   *in-funs* *eh-funs* *eh-vars* *eh-macs* *eh-sym-macs*)
+	   *in-funs* *eh-funs* *eh-vars* *eh-macs* *eh-sym-macs*
+	   expression-hook-to-macro-hook macro-hook-to-expression-hook)
   (:documentation 
    "Macroexpands code purely by itself. *expression-hook* continues it,
  and must call further expand-hook.
@@ -22,8 +23,21 @@ Used for gathering information on code autodoc via expression-scan."))
 
 (in-package #:expression-hook)
 
+;;TODO Got a bug about macrolet, seen first through defmethod
+
 (defparameter *expression-hook* 'expand-hook
   "Hook that reads every s-expression macroexpand-dammit encounters.")
+
+(defun expression-hook-to-macro-hook (expr-hook)
+  "(Trivial)conversion from expression hook to macro hook."
+  (lambda (expander form env)
+    (funcall expr-hook form)
+    (funcall expander form env)))
+
+(defun macro-hook-to-expression-hook (macro-hook)
+  "(Trivial)conversion from macro hook to expression hook."
+  (lambda (expr)
+    (funcall macro-hook #'funcall expr nil)))
 
 (defvar *base-macros* (make-hash-table)
   "Base macros, but can also override regular macros.(That case you have to\
@@ -184,6 +198,19 @@ Used for gathering information on code autodoc via expression-scan."))
 (def-base-macro defun (defun name (&rest args) &body body)
   `(,defun ,name ,@(base-fun name args body :flat-arg t)))
 
+(def-base-macro defmethod
+    (defmethod name way/args &optional args/dstr dstr/body &body body)
+  (multiple-value-bind (args dstr body)
+      (cond
+	((listp way/args)
+	 (values way/args args/dstr (cons dstr/body body)))
+	((listp args/dstr)
+	 (values args/dstr dstr/body body))
+	(t                 (error "")))
+    (declare (ignore dstr))
+    `(,defmethod ,name ,@(when (symbolp way/args) (list way/args))
+       ,@(base-fun name args body :flat-arg t))))
+
 (def-base-macro lambda (lambda (&rest args) &body body)
   `(,lambda ,@(base-fun '|lambda| args body :flat-arg t)))
 
@@ -228,11 +255,11 @@ Used for gathering information on code autodoc via expression-scan."))
   (multiple-value-bind (res names) (expand-funs funs :flat-arg t)
     (let ((*eh-macs*
 	   (append *eh-macs*
-		   (mapcar (lambda (name)
-			     (list name
-				   (eval `(lambda ,@(cdr (assoc name funs))))))
-			   names))))
-      `(,macrolet (,@res) ,@(e-list body)))))
+	     (mapcar (lambda (name)
+		       (list name
+			     (eval `(lambda ,@(cdr (assoc name funs))))))
+		     names))))
+      `(,macrolet (,@funs) ,@(e-list body)))))
 
 (defun function-name-p (name)
   (or (symbolp name) 

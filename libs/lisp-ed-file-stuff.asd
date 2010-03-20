@@ -11,11 +11,8 @@
 
 (use-package '(:asdf))
 
-(defsystem :expression-hook
-  :description "Macroexpands code purely by itself. *expression-hook* continues it,
- and must call further expand-hook.
-Used for gathering information on code autodoc via expression-scan."
+(defsystem :lisp-ed-file-stuff
+  :description "Stuff for files."
   :serial t
-  :depends-on (:generic :denest
-	       :lisp-ed-package-stuff :lisp-ed-file-stuff)
-  :components ((:file "expression-hook")))
+  :depends-on (:generic)
+  :components ((:file "file-stuff")))

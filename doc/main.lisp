@@ -2,7 +2,9 @@
 
 (require :more)
 (require :autodoc)
+(require :cl-dot)
 
+(setq expr-scan:*scan-result* (make-hash-table :test 'equalp))
 (defun scan-stuff ()
   (let ((*default-pathname-defaults* 
 	 #p"/home/jasper/proj/lisp-umac/"))
@@ -20,7 +22,8 @@
 (scan-stuff)
 
 (defun package-link (pkg &rest objects)
-  (gil-autodoc:mention-package pkg (glist-list :series objects)))
+  (gil-autodoc:mention-obj (expr-scan:access-result 'defpackage pkg)
+			   objects :start 1))
 
 (defun mention+ (name &rest objects)
   "Mentions, assuming either function or variable and not ambiguous."
@@ -43,20 +46,11 @@
 			(glist (mk file-image ;
 			  :filename "http://developer.berlios.de/bslogo.php?group_id=0"))))))
 
-(print (gil-html:cur-link-url
-
-(let ((*lang* :html))
-  (call
-  (gil-autodoc:document
-   :full (expr-scan:access-result 'defvar '*attempt-readable*))))
-
-;(gil-autodoc::give-name (vector 'defvar 'gil-autodoc:*treat-args*))
-
-(maphash (lambda (k v)
-	   (print (list (package-stuff:to-package-name k) k v)))
-	 gil-info::*links*)
-
-(setq gil-info::*links* (make-hash-table))
+;Note it has to be base-track, otherwise it is super of list, and it will 
+; do :full with the list!
+(gil-autodoc:def-document :full-with-hr*
+    ((object expr-scan::base-track) &key)
+  (series :hr (gil-autodoc:document :full object)))
 
 (defun mk-website ()
   "Makes the website. Only paginated stuff will appear as file, rest to\
@@ -64,9 +58,9 @@
   (let*((*default-pathname-defaults*
 	 #p"/home/jasper/proj/lisp-editor/doc/html/")
 	(*attempt-readable* nil)
-	(gil-autodoc:*treat-args* nil)
-	(gil-autodoc:*treat-title* :title-args)
-;	(gil-info::*links* (make-hash-table))
+	(gil-info::*links* (make-hash-table))
+	(gil-autodoc::*file-root-mention*
+	 "/home/jasper/proj/lisp-editor/")
 	(site-contents
 	 (gil-contents:use-contents
 	  (gil-info:gather-contents "../website.gil")
@@ -74,18 +68,20 @@
 	   (:level-filter :to 1) :header :link)))
 	(autodoc
 	 (glist-list :series
-	   (mapcar (lambda (pkg)
-		     (gil-autodoc:document :pkg pkg))
-		   '(:generic :denest
-		     :package-stuff :expression-hook :expression-scan
-
-		     :gil :gil-vars :gil-share :gil-style
-		     :gil-read :gil-info :gil-user
-		     :gil-output-util :gil-html :gil-txt :gil-latex
-		     
-		     :gil-contents :gil-log
-		     
-		     :gil-autodoc))))
+	   (mapcar
+	    (lambda (pkg)
+	      (gil-autodoc:document :pkg pkg
+				    :doc-manners '(:full-with-hr*)))
+	    '(:generic :denest
+	      :package-stuff :expression-hook :expression-scan
+	      
+	      :gil :gil-vars :gil-share :gil-style
+	      :gil-read :gil-info :gil-user
+	      :gil-output-util :gil-html :gil-txt :gil-latex
+	      
+	      :gil-contents :gil-log
+	      
+	      :gil-autodoc))))
 	(autodoc-contents
 	 (gil-contents:use-contents
 	  (gil-info:gather-contents autodoc)
