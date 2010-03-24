@@ -10,7 +10,7 @@
 (cl:in-package :common-lisp)
 
 (defpackage :package-stuff
-  (:use :common-lisp :generic)
+  (:use :common-lisp :alexandria)
   (:export to-package to-package-name same-package symbol-package> listfind-package)
   (:documentation "Some stuff to do with packages."))
 
@@ -27,7 +27,7 @@
 
 (defun to-package-name (x)
   "Gets the package name from the x."
-  (when-let pkg (to-package x)
+  (when-let (pkg (to-package x))
     (package-name pkg)))
 
 (declaim (inline to-package-name))

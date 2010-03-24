@@ -16,9 +16,9 @@
    *section-page-level* *section-level-modifier*
    *long-number*
    *indent-depth* *indent-step* *line-len* *acceptable-line-split-ratio*
-   *page-path* *attempt-readable* *attempt-shorten*
-   *cur-page* *cur-pos* *cur-char-depth*)
-  (:documentation "Various variables determing how things are done."))
+   *attempt-readable* *attempt-shorten*
+   *following-directory*)
+  (:documentation "Various variables determining how things are done."))
 
 (in-package :gil-vars)
 
@@ -40,6 +40,9 @@
 (defvar *long-number* 99
   "When a number is considered long.")
 
+(defvar *following-directory* ""
+  "Allows you to tell where the output is supposed to go directory-wise.")
+
 ;;Line stuff.
 (defvar *indent-depth* 0
   "Current tab depth.")
@@ -52,20 +55,8 @@
  acceptable. TODO more apt name")
 
 ;;Telling how to output:
-(defvar *page-path* (make-hash-table)
-  "Hash table with page names that want an alternate path.\
- (only do it for a reason.)")
 (defvar *attempt-readable* t
   "Whether the output/implementation should try produce human-readable\
  results.")
 (defvar *attempt-shorten* t
   "Whether to try make it as short as possible.")
-
-;;Internal communication inside packages.(Suggested.)
-(defvar *cur-page* ""
-  "Suggested variable for communication of current page.")
-(defvar *cur-pos* ""
-  "Suggested variable of communication of how one would link\
- to the current position.")
-(defvar *cur-char-depth* 0
-  "Suggested variable of communication of Current character depth.")

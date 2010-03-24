@@ -40,17 +40,30 @@ Write-log writes the all of *log-file*"))
 	  *log-data* (read stream))
     (do ((read (read stream nil nil) (read stream nil nil)))
 	((null read) (values))
+      (when (null (cdddr read))
+	(setf (cdddr read) (list (list))))
       (push read *log-entries*)))
   (setf (log-data :last-read) (get-universal-time)))
 
-(defun write-log (&optional (log-file *log-file*))
+(defun write-log (&optional (log-file *log-file*) (cleanup t))
   "Writes current log state."
   (setf (log-data :last-write) (get-universal-time))
   (with-open-file (stream log-file :direction :output
 		   :if-exists :supersede :if-does-not-exist :create)
     (print *log-file* stream)
     (print *log-data* stream)
-    (mapcar (rcurry #'print stream) *log-entries*))
+    (mapcar (if cleanup
+	      (lambda (entry)
+		(print
+		 (append (subseq entry 0 3)
+			 (do ((iter (cdddr entry) (cddr iter))
+			      (out nil
+			       (if (not (cadr iter))
+				 out (append (subseq iter 0 2) out))))
+			     ((null iter) out)))
+		 stream))
+	      (rcurry #'print stream))
+	    *log-entries*))
   (values))
 
 (defmacro with-log ((&key log-file)
@@ -66,7 +79,8 @@ Write-log writes the all of *log-file*"))
   (unless (or (string= file-namestring *log-file*)
 	      (assoc file-namestring *log-entries* :test #'string=))
     (setf (log-data :last-addition) time)
-    (push (list file-namestring time (file-write-date file-namestring))
+    (push (list file-namestring time (file-write-date file-namestring)
+		(list))
 	  *log-entries*)))
 
 (defun add-new-entries
@@ -80,13 +94,15 @@ Write-log writes the all of *log-file*"))
 
 (defmacro with-entry-access (entry &body body)
   "Access an entry."
-  `(destructuring-bind (filename seen-date had-timestamp
-			&rest keywords) ,entry
-     (declare (ignorable filename seen-date had-timestamp
-			 keywords))
-     (macrolet ((access (name)
-		  `(getf keywords ,name)))
-       ,@body)))
+  (with-gensyms (e)
+    `(let ((,e ,entry))
+       (destructuring-bind (filename seen-date had-timestamp
+			     &rest keywords) ,e
+	 (declare (ignorable filename seen-date had-timestamp))
+	 (when (null keywords) (setf (cdddr ,e) (list(list))))
+	 (macrolet ((access (name)
+		      `(getf (car keywords) ,name)))
+	   ,@body)))))
 
 (defun entry-changed-p (entry)
   "Returns if the entry has changed. Looks by just checking timestamps."
@@ -94,3 +110,4 @@ Write-log writes the all of *log-file*"))
     (when (< had-timestamp (file-write-date filename))
       (setf (nth 3 entry) (file-write-date filename))
       t)))
+

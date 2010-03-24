@@ -11,11 +11,11 @@
 
 (defpackage :gil-autodoc
   (:use :common-lisp :alexandria :denest
-	:package-stuff :file-stuff
+	:package-stuff :path-stuff
 	:gil :gil-share 
 	:expression-scan)
-  (:export mention-obj mention mention-file
-	   *file-root-mention* *file-root-link*
+  (:export mention-obj mention mention-path mention+
+	   *path-root-mention* *path-root-link*
 	   document def-document def-document-form
 	   *mentionable-dependency*)
   (:documentation "Produces GIL 'code' documentation.
@@ -91,35 +91,44 @@ Probably will want document internal stuff too."
   "Mention a scanned CL statement."
   (declare (type list objects))
   (glist-list
-   (if-let (name (when (or *also-internal* (external-p (name mentioned)))
-		   (give-name mentioned)))
-     (make-instance 'follow-link :name name) :underlined)
-   (or objects (list (string-downcase (name mentioned) :start start)))))
+   (make-instance 'follow-link
+     :name (when (or *also-internal* (external-p (name mentioned)))
+	     (give-name mentioned)))
+   (or objects (list (string-downcase (expr-scan:name mentioned)
+				      :start start)))))
 
 (defun mention (type name &rest objects)
   "Mention accessed object.(mention-obj if you already have the object."
   (mention-obj (access-result type name) 
 	       (or objects (list (string-downcase name)))))
 
+(defun mention+ (name &rest objects)
+  "Mentions, assuming either (generic)function, macro, variable or\
+ package (via keyword), if ambiguous, in that order."
+  (if-let (obj (access-result
+		'(defun defgeneric defmacro defvar defparameter)
+		name))
+    (mention-obj obj objects)
+    (mention-obj (access-result 'defpackage name) objects :start 1)))	
 
 ;;Mentioning files. (Files may get objects at some point?)
-(defvar *file-root-mention* nil
-  "Root of file for mentioning. (just filenames if nil)")
-(defvar *file-root-link* nil
-  "Root of file for linking. (no links if nil.")
+(defvar *path-root-mention* nil
+  "Root of path for mentioning. (just filenames if nil)")
+(defvar *path-root-link* nil
+  "Root of path for linking. (no links if nil.")
 
-(defun mention-file (path &rest objects)
+(defun mention-path (path &rest objects)
   "Mentions a file."
   (flet ((mention-markup ()
 	   (cond
 	     (objects
 	      (glist-list :series objects))
-	     (*file-root-mention*
-	      (from-file-root path *file-root-mention*))
+	     (*path-root-mention*
+	      (from-path-root path *path-root-mention*))
 	     (t
 	      path))))
-    (if *file-root-link*
-      (url-link (from-file-root path *file-root-link*) (mention-markup))
+    (if *path-root-link*
+      (url-link (from-path-root path *path-root-link*) (mention-markup))
       (mention-markup))))
 
 ;;Documentation.
@@ -365,17 +374,15 @@ Got ~D here" allow-listing a))))
 
 (def-document :file-origin ((track track-package) &key)
   "Documents the file origin of a package."
-  (let ((first t))
-    (with-slots (expr-scan::paths) track
-      (when expr-scan::paths
-	(glist-list :series
+  (with-slots (expr-scan::paths) track
+    (when expr-scan::paths
+      (glist-list :series
 	  `(,(format nil "Came from file~a: "
 		     (if (null(cdr expr-scan::paths)) "" "s"))
 	    ,@(mapcan (lambda (path)
-			(cond (first (setq first nil)
-				     (list(mention-file path)))
-			      (t     (list (mention-file path) ", "))))
-		      expr-scan::paths)))))))
+			(list (mention-path path) ", "))
+		      (butlast expr-scan::paths))
+	    ,(mention-path (car(last expr-scan::paths))))))))
 
 (def-document :description ((package package) &key)
   (if-let (package-obj (access-result 'defpackage
@@ -444,6 +451,19 @@ Got ~D here" allow-listing a))))
 
 ;;Documenting packages with contents.
 
+(def-document :package-top
+    ((package package) &key name (level* *package-section-level*) 
+                            rest internal)
+  (section level* name (glist (if name :series 
+			        (make-instance 'follow-link
+				  :name (give-name package)))
+			      (when internal "Internal of") 
+			      (document :title package))
+    (document :description package)
+    (p (document :dep package))
+    (p (document :file-origin package))
+    (glist-list :series rest)))
+
 (def-document :whole ((package package)
 		      &key (sort-compare :alphabetic)
 		      (also-internal *also-internal*)
@@ -451,19 +471,15 @@ Got ~D here" allow-listing a))))
   (let*((name (give-name package))
 	(i-name (format nil "~a=internal" name)))
     (flet ((doc (list &optional internal)
-	     (section *package-section-level* (if internal i-name name)
-		      (series (when internal "Internal of ")
-			      (document :title package))
-	       (document :description package)
-	       (when also-internal
-		 (if internal (p(b(link name "The external part.")))
-		     (p (link i-name "The internal part."))))
-	       (p (document :dep package))
-	       (p (document :file-origin package))
-	       (glist-list
-		:series (mapcar (lambda (manner)
-				  (document manner list))
-				doc-manners)))))
+	     (document :package-top package
+		       :name (if internal i-name name) :internal internal
+	       :rest (cons
+		      (when also-internal
+			(if internal (p(b(link name "The external part.")))
+			    (p (link i-name "The internal part."))))
+		      (mapcar (lambda (manner)
+				(document manner list))
+			      doc-manners)))))
       (series
        (doc (get-external-objects package sort-compare))
        (when also-internal

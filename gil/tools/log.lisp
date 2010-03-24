@@ -10,19 +10,25 @@
 (cl:in-package :cl-user)
 
 (defpackage :gil-log
-  (:use :common-lisp :alexandria :log
+  (:use :common-lisp :alexandria :log :path-stuff
 	:gil :gil-read :gil-output-util)
-  (:export write-rss execute-entry execute-entries-if)
+  (:export write-rss execute-entry entries-do-if
+	   update force-full-redo)
   (:documentation "Extends log system for executing gil files and\
  producing RSS."))
 
 (in-package :gil-log)
 
+(defun later-than (time than-time)
+  (if (and time than-time) (> time than-time) :unknown))
+
 (defun past-date (entry of-what)
   "Whether something is past (expiration)date."
   (with-entry-access entry
-    (if (access of-what)
-      (> (file-write-date filename) (access of-what)) t)))
+    (let ((file-date (file-write-date filename))
+	  (date (access of-what)))
+      (assert file-date nil "How come no file-write-date on ~s" filename)
+      (later-than file-date date))))
 
 (defun doesnt-have (entry what)
   "Sees if an entry has a particular element."
@@ -36,26 +42,31 @@ Keywords :all(default), :need-execute (changed after previous execution),
   (let ((predicate
 	 (case predicate
 	   (:never-executed
-	    (curry #'doesnt-have :last-execute-time))
+	    (rcurry #'doesnt-have :last-execute-time))
 	   (:all
 	    (gen:constant t))
 	   (:changed
 	    #'log:entry-changed-p)
 	   (:needs-execute
-	    (curry #'past-date :last-execute-time))
+	    (rcurry #'past-date :last-execute-time))
 	   (:needs-update
-	    (curry #'past-date :last-update-time))
+	    (rcurry #'past-date :last-update-time))
 	   (t
 	    (assert (not(keywordp predicate)) nil 
 		    "Keyword ~s not recognized." predicate)
 	    predicate))))
     (declare (type (function (list) (values)) predicate))
-    (dolist (entry *log-entries*)
-      (when (funcall predicate entry)
-	(funcall action entry)))))
+    (mapcan (lambda (entry)
+	      (when (funcall predicate entry)
+		(list (funcall action entry))))
+	    *log-entries*)))
 
 (defun rss-file ()
   (or (log-data :rss-file) ".rss"))
+
+(defun gillable (filename)
+  (case (intern (file-extension filename) :keyword)
+    ((:|.gil| :|.lisp|) t)))
 
 (defun update-entry (entry &key (time (get-universal-time)))
   "Update entry."
@@ -69,28 +80,27 @@ Keywords :all(default), :need-execute (changed after previous execution),
 	  (gil-info:*enclosure* nil)
 ;	  (gil-info:*attribute* nil)
 	  (gil-info:*comments-thread* nil)
-	  (gil-info:*notables* nil))
-      (call (execute-entry entry)) ;Gathering
-      (with-slots (gils::level gils::name gils::title gils::description)
-	  (car gil-info:*contents*)
-	(setf (access :title)
-	      (with-output-to-string (*standard-output*)
-		(let ((gil:*lang* :html)) (call gils::title)))
-	      (access :link-name) gils::name
-	      (access :link) (gil-html:cur-link-url gils::name))
-	(unless (string= gils::description "")
-	  (setf (access :description) gils::description)))
+	  (gil-info:*notables* nil)
+	  (gil-info:*most-significant-section* nil))
+      (let ((*package* (find-package :gil-user)))
+	(call (execute filename))) ;Gathering
+      
+      ;Conversion to outputs of rss is delayed so can be done with :info
+      ;first. :section should never be written to disk.
+      (setf (access :section) gil-info:*most-significant-section*)
+      
       (setf (access :notables)
 	    (mapcar (lambda (notable) 
 		      (with-output-to-string (*standard-output*)
 			(let ((gil:*lang* :txt)) (call notable))))
 		    gil-info:*notables*))
+      
       (when gil-vars:*author*
 	(setf (access :author) gil-vars:*author*))
       (when gil-info:*comments-thread*
 	(setf (access :comments-thread-name) gil-info:*comments-thread*
 	      (access :comments-thread)
-	      (gil-html:cur-link-url gil-info:*comments-thread*))))))
+	      (gil-html:link-url gil-info:*comments-thread*))))))
 
 (defun written-time (ut) ;TODO move somewhere else.
   "Time, but written out, hopefullying suiting rss."
@@ -108,41 +118,64 @@ Keywords :all(default), :need-execute (changed after previous execution),
 	 year
 	 (two-digit hour) (two-digit minute) (two-digit second)))))
 
+(defun write-str (*lang* &rest objects)
+  (with-output-to-string (*standard-output*)
+    (call-list objects)))
+
+(defun write-rss-elements (entry section)
+  (with-entry-access entry
+    (with-slots (gils::name gils::title gils::description) section
+      (setf (access :link-sym) gils::name
+	    (access :link) (gil-html:link-url gils::name)
+	    (access :title) (write-str :html gils::title))
+      (when gils::description
+	(setf (access :description) (write-str :html gils::description))))
+    (setf (access :section) nil))) ;Must be nil before write!
+
 (defun write-rss-entry (entry)
   "Write single entry into rss."
   (with-entry-access entry
     (unless (access :first-rss-write)
       (setf (access :first-rss-write) (get-universal-time)
 	    (log-data :last-rss-change) (get-universal-time)))
-    (xml-surround "item"
-      (xml-surround "pubDate"
-	(write-string (written-time (access :first-rss-write))))
-      (mapcar (lambda (keyword)
-		(when (access keyword)
-		  (xml-surround (string-downcase keyword)
-		    (write-string (access keyword)))))
-	      '(:title :link :author :description :comments-thread))
-      (dolist (notable (access :notables))
-	(xml-surround "category" (write-string notable))))))
+    (when (gillable filename)
+      (xml-surround "item"
+	(xml-surround "pubDate"
+	  (write-string (written-time (access :first-rss-write))))
+	
+	(when-let (section (access :section)) ;If needed, fill entries 
+	  (write-rss-elements entry section)) ;for below.
+	
+	(mapcar (lambda (of)
+		  (when-let (got (access of))
+		    (xml-surround (string-downcase of)
+		      (write-string got))))
+		'(:title :description :author :link :comments))
+	
+	(dolist (notable (access :notables))
+	  (xml-surround "category" (write-string notable)))))))
 
 (defun write-rss (&key (backup t))
   "Update rss file."
   (setf (log-data :last-rss-write) (get-universal-time))
-  (when backup
-    (cl-fad:copy-file (rss-file) (format t "~a-backup" (rss-file))))
-  (with-open-file (*standard-output* (rss-file))
+  (when (and backup (probe-file (rss-file)))
+    (cl-fad:copy-file (rss-file) (format nil "~a-backup" (rss-file))
+		      :overwrite t))
+  (with-open-file (*standard-output* (rss-file) :direction :output
+		   :if-exists :supersede :if-does-not-exist :create)
     (xml-surround "title"
       (if-let (title (log-data :log-title))
 	(write-string title)
 	(warn "No title for RSS!")))
     (xml-surround "link"
-      (write-string (or (log-data :log-link)
+      (write-string (or (log-data :log-url-link)
 			(error "Tried to write rss without link!"))))
     (xml-surround "description"
       (when-let (description (log-data :log-description))
 	(write-string description)))
     (xml-surround "pubDate"
-      (write-string (written-time (log-data :last-rss-change))))
+      (write-string (written-time (or (log-data :last-rss-change)
+				      (log-data :last-addition)))))
     (dolist (category (log-data :categories))
       (xml-surround "category" (write-string category)))
     (xml-surround "generator" (write-string "gil-log"))
@@ -156,10 +189,16 @@ Keywords :all(default), :need-execute (changed after previous execution),
 (defun execute-entry (entry)
   "Executes an entry. Adds rss mention if needed."
   (with-entry-access entry ;Executed entries have rss element.
-    (when (< (access :last-update-time) (file-write-date filename))
-      (update-entry entry))
-    (setf (access :last-execute-time) (get-universal-time))
-    (xml-surround "generator" (write-string "gil-log"))
-    (execute filename)))
+    (when (gillable filename)
+      (unless (later-than (access :last-update-time)
+			  (file-write-date filename))
+	(update-entry entry))
+      (setf (access :last-execute-time) (get-universal-time))
+      (execute filename))))
 
 ;TODO showing them chained.
+(defun update (&key (for :all))
+  "Updates everything regardless of it needs to be. 
+Hopefully won't be used."
+  (prog1 (entries-do-if #'execute-entry for)
+    (write-rss)))

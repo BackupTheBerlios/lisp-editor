@@ -53,8 +53,8 @@ entered, but it is just good habit to fill those.\))
   It can be extended by writing expression-hooks.
 
   (section 4 $"autodoc-scan" #(Autodocumentation)
-    Packages (package-link $:expression-scan Expression-scan) and
-    (package-link $:expression-hook Expression-hook).))
+    Packages (mention+ $:expression-scan Expression-scan) and
+    (mention+ $:expression-hook Expression-hook).))
     
 (section 2 $"Autodocumentation" #(Autodocumentation)
   Based on the scan data, so can make documentation from any expression 
@@ -68,30 +68,30 @@ entered, but it is just good habit to fill those.\))
      documentation aside would be nice.)
 
   (p It is also very integratable into .gil files and such, onw can just
-     do $(mention+ 'gil-autodoc:mention
-          (code "(gil-autodoc:mention type name &rest optionally-further-text)"))
+     do $(mention+ 'mention
+          (code "(mention type name &rest optionally-further-text)"))
      to mention a statement and it should link it, (b if) it is scanned and
      has a appropriate 
-     $(mention+ 'gil-autodoc:document)!
+     $(mention+ 'document)!
      You don't have to also use (code gil-autodoc:) if that is used in the
      package you are reading with. (note See (link $"Todo") for what is 
      still missing.))
   
   (section 4 $"autodoc-autodoc" #(Autodocumentation)
-    Package (package-link $:autodoc-gil autodoc-gil).)))
+    Package (mention+ $:autodoc-gil autodoc-gil).)))
 
 (section 1 $"GIL" #(General Interface Library/Language \(Explanation\))
   
-  (execute $"../principles.gil")
+  (execute $"principles.gil")
   
   See (link $"GIL-use" GIL from user perspective) or 
    the autodocumentation for more.
    
   (section 4 $"gil-autodoc" #(Autodocumentation)
-    Packages (package-link $:gil gil), (package-link $:gil-share),
-    (package-link $:gil-style), (package-link $:gil-info),
-    (package-link $:gil-read), (package-link $:gil-user),
-    (package-link $:gil-html).))
+    Packages (mention+ $:gil gil), (mention+ $:gil-share),
+    (mention+ $:gil-style), (mention+ $:gil-info),
+    (mention+ $:gil-read), (mention+ $:gil-user),
+    (mention+ $:gil-html).))
   
 (section 1 $"GIL-use" #(GIL from user perspective)
   
@@ -100,7 +100,7 @@ entered, but it is just good habit to fill those.\))
   
   If things get to nested, try 
   (url-link $"http://lisp-umac.berlios.de/main.html" the denest macro),
-  which removes nestedness. (package-link $:denest \(autodoc\))
+  which removes nestedness. (mention+ $:denest \(autodoc\))
 
 (section 2 $"Conventions" #(Conventions)
   The most important convention is that any function that works on 
@@ -161,7 +161,7 @@ entered, but it is just good habit to fill those.\))
   Various todo list, first very external bits. 
   (note Some should be different library.)
 
-  (execute $"../todo.gil")
+  (execute $"todo.gil")
   )
 
 (section 1 $"GIL-output" #(GIL output languages)

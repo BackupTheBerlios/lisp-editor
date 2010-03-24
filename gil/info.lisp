@@ -11,10 +11,9 @@
 
 (defpackage :gil-info
   (:use :common-lisp :alexandria
-	:denest :gil :gil-vars :gil-share :gil-read)
+	:denest :gil :gil-vars :gil-comms :gil-share :gil-read)
   (:export use-contents gather gather-contents
-	   link-to-url
-	   *contents* *notables* *enclosure* *comments-thread*)
+	   link-to-url)
   (:documentation
    "Contains gathering data for contents, and creation of contents section.
 Gathering contents also registers and handles links if not already\
@@ -22,15 +21,11 @@ Gathering contents also registers and handles links if not already\
 
 (in-package :gil-info)
 
-(defvar *contents* nil)
-
-(defclass link-entry () ((page :initarg :page)))
-
-(defvar *register-first* nil)
+(defclass link-entry ()
+  ((page :initarg :page :type symbol)
+   (directory :initarg :directory :type string)))
 
 ;;Link stuff
-(defvar *links* (make-hash-table))
-
 (defun link-to-keyword (link-name)
   (intern (format nil "~a" link-name) :keyword))
 
@@ -40,6 +35,7 @@ Gathering contents also registers and handles links if not already\
   (setf (gethash (link-to-keyword link-name) *links*) to))
 
 (defun register-link (link-name)
+  "Registers a link to be at some location."
   (when link-name
     (typecase (get-link-page link-name)
       (link-entry
@@ -47,9 +43,10 @@ Gathering contents also registers and handles links if not already\
 Links might go not as intended! Link name: ~a
 Page ~a changed to page ~a."
 	     link-name (slot-value (get-link-page link-name) 'page)
-	     gils::*cur-page*)))
+	     *cur-page*)))
     (setf (get-link-page link-name)
-	  (make-instance 'link-entry :page gils::*cur-page*))))
+	  (make-instance 'link-entry
+	    :page *cur-page* :directory *cur-directory*))))
 ;;End link stuff.
 
 (def-call (fun function) (funcall fun))
@@ -63,7 +60,7 @@ Page ~a changed to page ~a."
   "Collects table of contents from files."
   (unless (eql *lang* :info)
     (let ((*lang* :info)
-	  (gils::*handle-page* #'identity))
+	  (*handle-page* #'identity))
       (call (gil-read::execute from)))
     (setq *contents* (reverse *contents*))))
 
@@ -75,47 +72,54 @@ Page ~a changed to page ~a."
 
 (def-glist anything objects
   (declare (ignore anything))
-  (mapcar #'call objects))
+  (call-list objects))
 
-(def-glist (link gils::link) objects
+(def-glist :comment objects
+  "Comment is useful also because info doesn't ignore it."
+  (call-list objects))
+
+(def-glist (link link) objects
   (register-link (gils::name link))
-  (mapcar #'call objects))
+  (call-list objects))
 
-(def-glist (link gils::follow-link) objects
+(def-glist (link follow-link) objects
   (declare (ignore link))
 ;  (register-link (gils::name link))
-  (mapcar #'call objects))
+  (call-list objects))
 
-(def-glist (url-link gils::url-link) objects
+(def-glist (url-link url-link) objects
   (declare (ignore url-link))
-  (mapcar #'call objects))
+  (call-list objects))
 
 (def-glist (section section) list
   (push section *contents*)
   (with-slots (gils::name gils::level gils::title) section
+    (when (or (not *most-significant-section*)
+	      (< gils::level ;;Keep track of which section is most significant.
+		 (slot-value *most-significant-section* 'gils::level)))
+      (setq *most-significant-section* section))
     (let ((*cur-pos* gils::name))
       (cond
-	((> gils::level gils::*section-page-level*)
+	((> gils::level *section-page-level*)
 	 (register-link gils::name)
 	 (call gils::title)
-	 (mapcar #'call list))
+	 (call-list list))
 	(t ;Produces new page.
-	 (let ((gils::*cur-page*; (gils::intern* gils::name))
-		(if-let (path (gethash gils::name gils::*page-path*))
-		  (format nil "~a~a" path gils::name) ;Path specified.
-		  gils::name)))
+	 (let ((*cur-page*; (gils::intern* gils::name))
+		gils::name)
+	       (*cur-directory* ;Set output directory to where wanted.
+		*following-directory*))
 	   (register-link gils::name)
 	   (call gils::title)
-	   (mapcar #'call list)))))))
+	   (call-list list)))))))
 
 (def-call (table-el table-el)
   (call-list (slot-value table-el 'gils::contents)))
 
-(def-glist (table gils::table) contents
+(def-glist (table table) contents
   (mapcar (lambda (el)
 	    (if (listp el)
-		(mapcar #'call el)
-		(call el)))
+	      (call-list el) (call el)))
 	  contents))
 
 (defclass url-entry ()
@@ -146,6 +150,4 @@ Page ~a changed to page ~a."
 	*notables*)
   (call-list objects))
 
-(defvar *comments-thread* nil
-  "Denotes a link to the comments thread if any found.")
-(defvar *enclosure* nil)
+

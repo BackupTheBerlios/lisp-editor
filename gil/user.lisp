@@ -39,15 +39,16 @@ you used.)"
      (to-path *default-pathname-defaults*)
      saved-links saved-contents)
   "Processes GIL files for you, many special variables served as\
- keyword arguments for you."
+ keyword arguments for you.
+NOTE: probably will deprecate it."
   (denest:denest
    (let ((*default-pathname-defaults* to-path)))
    (with-open-file (*standard-output* main-output :direction :output
 		    :if-does-not-exist :create :if-exists :supersede))
    (let*((*lang* lang)
-	 (gil-info::*links*
+	 (gil-comms:*links*
 	  (or saved-links (make-hash-table)))
-	 (gil-info::*contents*
+	 (gil-comms:*contents*
 	  saved-contents))
      (assert (if saved-links saved-contents (not saved-contents))
 	     nil "If you provide saved links also provide saved contents.")

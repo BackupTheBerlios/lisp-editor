@@ -20,7 +20,7 @@ TODO not tested very deeply."))
 
 (in-package :gil-txt)
 
-(def-call anything (error "Not recognized: ~a" anything))
+(def-call anything (error "Not recognized: ~s" anything))
 
 (def-call (str string)
   (add-txt (substitute #\Space #\Newline 
@@ -34,6 +34,9 @@ TODO not tested very deeply."))
 
 (def-call (fun function)
   (funcall fun))
+
+(def-call :newline (call "
+"))
 
 ;;Lists
 
@@ -56,7 +59,7 @@ TODO not tested very deeply."))
 
 (def-glist (sym symbol) list
   (let ((*indent-depth* (+ *indent-depth* 1)))
-    (glist-list (make-instance 'lister :style sym) list)))
+    (call (glist-list (make-instance 'lister :style sym) list))))
 #|
  (defun numbered-list-raw
     (list &key (n 1) (prep "") long-numbers

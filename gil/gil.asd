@@ -9,12 +9,14 @@
  system for different kinds of interface and markup.
 Probably good idea to use combined with denest."
   :serial t
-  :depends-on (:generic :alexandria :denest :log :cl-fad)
+  :depends-on (:generic :alexandria :denest :log :cl-fad
+			:lisp-ed-path-stuff)
   :components (;Base stuff.
 	       (:module "specify"
 		:serial t
                 :components
    	        ((:file "gil") ;Base gil defgenerics.
+		 (:file "comms")
 		 (:file "vars")
  	         (:file "share") ;Some tools, and variables.
 	         (:file "style")))
@@ -38,6 +40,7 @@ Probably good idea to use combined with denest."
 ;TODO damned asd has problems where load has _no indications_..
 		:components
 		((:file "contents")
-		 (:file "log"))
+;		 (:file "log")
+		 )
 		)
 	       ))

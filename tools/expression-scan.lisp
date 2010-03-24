@@ -95,14 +95,22 @@ Providing a list of fun-names will search them in sequence."
 
 (defvar *ignore-packages* (list :sb-impl :sb-int :sb-c :sb-pcl :sb-kernel))
 
+(defvar *couldnt-find-package* nil "List of packages not found.")
+
 (def-scanner in-package (name)
-  (if-let (to-package (find-package name))
-    (setq *package* to-package)
-    (progn
-      (warn "Couldn't find package for ~a. It might not have been loaded.
+  (unless
+      (cond ((find-package name)
+	     (setq *package* (find-package name)))
+	    ((asdf:find-system name nil)
+	     ;(asdf:oos 'asdf:load-op name) ;Try to get it.
+	     (when (find-package name)
+	       (setq *package* (find-package name)))))
+    (warn "Couldn't find package for ~a. It might not have been\
+ loaded.
 Discontinued scan."
-	    name)
-      (setq expr-hook::*discontinue* t)))
+	  name)
+    (pushnew name *couldnt-find-package*)
+    (setq expr-hook::*discontinue* t))
   (when-let (tracker (access-result 'defpackage (intern* name :keyword)))
     (multiple-value-bind (path file) (cur-file)
       (pushnew (format nil "~a~a" path file) (slot-value tracker 'paths)
@@ -356,31 +364,38 @@ true: Follow, assumes the macros in the files have been executed!
 
 (defun scan-asdf-components (components)
   (dolist (component components)
-    (case (car component)
-      (:file
-       (scan-file (format nil "~a.lisp" (cadr component))
-		  :expression-hook *expression-hook*))
-      (:module
-       (let ((*default-pathname-defaults*
-	      (pathname (format nil "~a~a/"
-		  (directory-namestring *default-pathname-defaults*)
-		  (cadr component)))))
-	 (scan-asdf-components (getf (cddr component) :components)))))))
+    (destructuring-bind (name value &rest rest) component
+      (case name
+	(:file
+	 (scan-file (format nil "~a.lisp" (or (when (symbolp value)
+						(string-downcase value))
+					      value))
+		    :expression-hook *expression-hook*))
+	(:module
+	 (let ((*default-pathname-defaults*
+		(pathname (format nil "~a~a/"
+		   (directory-namestring *default-pathname-defaults*)
+		   (or (when (symbolp value) (string-downcase value))
+		       value)))))
+	   (scan-asdf-components (getf (cddr component) :components))))))))
 
 (def-scanner asdf::defsystem (system-name &rest info)
   (setf (access-result 'asdf:defsystem system-name)
 	(make-instance 'track-form :form expr))
   ;If we know where we are, and are to folow:
-  (when *follow-asdf-systems*
-    (let ((*default-pathname-defaults* 
-	   (or (unless *reading-myself*
-		     *load-pathname*)
-		   *default-pathname-defaults*)))
-      (when (and (eql *follow-asdf-systems* :also-load)
-		 (asdf:find-system system-name nil))
-	(asdf:oos 'asdf:load-op system-name))
-     ;We only need to scan the files.
-     ;TODO doesn't work if subcomponents.
-      (when *follow-asdf-systems*
-	(scan-asdf-components (getf info :components)))))
+  (let ((*default-pathname-defaults* 
+	 (or (unless *reading-myself*
+	       *load-pathname*)
+	     *default-pathname-defaults*))
+	(follow
+	 (and (asdf:find-system system-name nil)
+	      (or (when (functionp *follow-asdf-systems*)
+		    (funcall *follow-asdf-systems* system-name))
+		  *follow-asdf-systems*))))
+    (when (eql follow :also-load)
+      (asdf:oos 'asdf:load-op system-name))
+   ;We only need to scan the files.
+   ;TODO doesn't work if subcomponents.
+    (when follow
+      (scan-asdf-components (getf info :components))))
   expr)

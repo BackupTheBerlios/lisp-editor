@@ -17,5 +17,5 @@
 Used for gathering information on code autodoc via expression-scan."
   :serial t
   :depends-on (:alexandria :denest
-	       :lisp-ed-package-stuff :lisp-ed-file-stuff)
+	       :lisp-ed-package-stuff :lisp-ed-path-stuff)
   :components ((:file "expression-hook")))

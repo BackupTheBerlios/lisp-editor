@@ -10,12 +10,12 @@
 (cl:in-package :cl-user)
 
 (defpackage gil-html
-  (:use :common-lisp :alexandria :denest 
+  (:use :common-lisp :alexandria :generic :denest :path-stuff
 	:gil-output-util
-	:gil :gil-share :gil-style :gil-vars)
+	:gil :gil-share :gil-style :gil-vars :gil-comms)
   (:documentation "Gil->html, not that the files linked internally are all 
 tracked by gil-info.")
-  (:export cur-link-url))
+  (:export link-url))
 
 (in-package :gil-html)
 
@@ -23,18 +23,24 @@ tracked by gil-info.")
   (glist-list way (mapcar #'call objects)))
 
 (defun may-indent ()
-  (when gils::*attempt-readable* (indent)))
+  (when *attempt-readable* (indent)))
 
 ;;Some utility
 
-(defparameter *default-style-file* "default.css")
+(defvar *default-style-file* "default.css")
+(defvar *style-went-to* nil)
 
 (defvar *refer-style* nil)
 (defvar *inline-style* nil)
 
 (defun style (&optional (file *default-style-file*))
   (wformat "<link rel=\"stylesheet\" type=\"text/css\" href=\"~a\" />~%"
-	   file))
+	   (if *style-went-to*
+	     (from-path-root (format nil "~a~a" *style-went-to* file)
+			     *following-directory*)
+	     file)))
+
+(from-path-root "website/meh" "autodoc/")
 
 (defmacro surround (with &body body)
   `(surround-fn ,with (lambda () ,@body)))
@@ -54,7 +60,7 @@ tracked by gil-info.")
 ;      ((and (not accepts-style) (> (length style-str) 0))
 ;       (surround (format nil "span ~a" style-str)
 ;	 (surround-fn with fill)))
-      (gils::*attempt-readable*
+      (*attempt-readable*
        (indent)
        (wformat (if fill "<~a~a>~%" "<~a~a \>~%") with style-str)
        (when fill
@@ -78,8 +84,8 @@ tracked by gil-info.")
 
 (def-call (str string)
   (may-indent)
-  (let ((string (if (and gils::*attempt-shorten*
-		         (not gils::*attempt-readable*))
+  (let ((string (if (and *attempt-shorten*
+		         (not *attempt-readable*))
 		  (remove-gratuous-whitespace str)
 		  str)))
     (if (or *refer-style* *inline-style*)
@@ -106,8 +112,11 @@ tracked by gil-info.")
 
 (def-glist :style-list list ;TODO eh need to supersede the first time :/
   "Style lists go straight to the .css file."
-  (with-open-file (css *default-style-file* :direction :output
-		   :if-exists :append :if-does-not-exist :create)
+  (setq *style-went-to* *following-directory*)
+  (with-open-file
+      (css (concatenate 'string *following-directory* *default-style-file*)
+	   :direction :output
+	   :if-exists :append :if-does-not-exist :create)
     (mapcar (lambda (el) (write-line el css)) list)))
 
 (def-glist (style refer-style) objects
@@ -126,11 +135,8 @@ tracked by gil-info.")
 
 (def-surrounding-glist :p "p")
 
-;TODO optionally make link-posses to indexed stuff.
-;(defvar *notable-name* "_note~a")
-;(defvar *notable-index* 0)
-
-;TODO make exact location links to these togleable
+;TODO make exact location links to these togleable 
+; (But need to index them first.)
 (def-glist (notable (eql :notable)) list 
   (call-list list))
 
@@ -139,8 +145,6 @@ tracked by gil-info.")
   (wformat "(") (call-list objects) (wformat ")"))
 
 (def-glist :series list
-  (call-list list))
-(def-glist :header list
   (call-list list))
 
 (def-glist (style symbol) list
@@ -157,21 +161,22 @@ tracked by gil-info.")
 (def-glist (sep lister) list
   (unless (null list)
     (let ((style (slot-value sep 'gils::style)))
-      (surround (format nil (case style
-			      ((:numbered-list
-				:armenian :decimal :decimal-leading-zero 
-				:georgian :lower-alpha :lower-greek
-				:lower-latin :lower-roman :upper-alpha
-				:upper-latin :upper-roman)
-			       "ol style=\"~D\"")
-			      (t "ul style=\"~D\""))
-			(if (symbolp style)
-			  (symbol-name
-			   (case style
-			     (:numbered-list  :decimal)
-			     (:list           :disc)
-			     (:alt-list       :square)
-			     (t style))) "DISC"))
+      (surround
+	  (format nil (case style
+			((:numbered-list
+			  :armenian :decimal :decimal-leading-zero 
+			  :georgian :lower-alpha :lower-greek
+			  :lower-latin :lower-roman :upper-alpha
+			  :upper-latin :upper-roman)
+			 "ol style=\"~D\"")
+			(t "ul style=\"~D\""))
+		  (if (symbolp style)
+		      (symbol-name
+		       (case style
+			 (:numbered-list  :decimal)
+			 (:list           :disc)
+			 (:alt-list       :square)
+			 (t style))) "DISC"))
 	 (dolist (el list)
 	   (surround "li" (call el)))))))
 
@@ -183,36 +188,43 @@ tracked by gil-info.")
 
 ;;Links as actions and notes.
 
-(defun sanitized-link (link &rest args)
+(defun sanitized-link (&rest rest)
   "TODO not very sturdy.."
-  (substitute #\_ #\* (apply #'format `(nil ,link ,@args))))
+  (substitute #\_ #\* (apply #'concatenate `(string ,@rest))))
 
-(defun cur-link-url (name &key (page (gil-info::get-link-page name)))
+(defun link-url (name &key (page (gil-info::get-link-page name)))
   (typecase page
     (gil-info::link-entry ;TODO recognize current page.
-     (let ((page (slot-value page 'gil-info::page)))
+     (with-mod-slots "" (gil-info::page gil-info::directory) page
        (cond ;;NOTE _nasty_ if bugged!!!
-	 ((string= *cur-page* page)
-	  (sanitized-link "#~a" name))
+	 ((and (string= *cur-page* page)
+	       (string= *cur-directory* directory))
+	  (sanitized-link "#" (string name)))
 	 (t;(string= *cur-page* "")
-	  (sanitized-link "~a.html#~a" page name)))))
+	  (sanitized-link
+	   (from-path-root directory *cur-directory*)
+	   (string page) ".html#" (string name))))))
     (gil-info::url-entry
      (slot-value page 'gil-info::url))
-    (null
-     (warn "Couldn't get page of ~s" (gil-info::link-to-keyword name))
-     (sanitized-link "~a.html" name))
+    (null ;Keep a list of failed links.
+     (pushnew name *dead-links* :test #'equalp) 
+     nil)
     (t
      (error "~a" page))))
 
 (def-glist (link follow-link) objects
-  (if (gils::name link)
-    (surround (format nil "a href=\"~a\"" (cur-link-url (gils::name link)))
-      (call-list objects))
-    (call-list objects)))
+  (cond
+    ((not (gils::name link))
+     (call-list objects))
+    ((link-url (gils::name link))
+     (surround (format nil "a href=\"~a\"" (link-url (gils::name link)))
+       (call-list objects)))
+    (t
+     (call (glist-list :underline objects)))))
 
 (def-glist (link link) objects
   (if (gils::name link) 
-    (surround (sanitized-link "a name=\"~a\"" (gils::name link))
+    (surround (sanitized-link "a name=\"" (string (gils::name link)) "\"")
       (call-list objects))
     (call-list objects)))
 
@@ -224,12 +236,23 @@ tracked by gil-info.")
 (def-surrounding-glist :bold "b")
 (def-surrounding-glist :italic "i")
 (def-surrounding-glist :underlined "u")
+(def-surrounding-glist :strike "s")
+
+(def-surrounding-glist :small "small")
+(def-surrounding-glist :big "big")
+
+(def-surrounding-glist :subscript "sub")
+(def-surrounding-glist :superscript "sup")
+
 (def-surrounding-glist :code "code")
+
+(def-surrounding-glist :monospace "tt")
+
 ;Oh, yeah, html didnt preserve it here.. Kindah silly.
 (def-glist :p-code objects
   (surround "code" ;Don't steal the whitespace.
     (surround "pre"
-      (let ((gils::*attempt-shorten* nil)) (call-list objects)))))
+      (let ((*attempt-shorten* nil)) (call-list objects)))))
 
 ;;Headers & Sections.
 
@@ -247,22 +270,19 @@ tracked by gil-info.")
 		      (header gils::level gils::title))
 		    objects)))))
    (cond ;Note: link wraps round whole thing.
-     ((> gils::level gils::*section-page-level*)
+     ((> gils::level *section-page-level*)
       (call (result)))
      (t
       (assert gils::name nil ;TODO get around it?
 	      "To paginate a section, it _must_ have a name.")
-      (let*((*cur-page*; (gils::intern* gils::name))
-	     (if-let (path (gethash gils::name gils::*page-path*))
-	       (format nil "~a~a" path gils::name) ;Path specified.
-	       gils::name))
-	    (*default-pathname-defaults*
-	     (or (gethash gils::name gils::*page-path*)
-		 *default-pathname-defaults*)))
+      (let*((*cur-page*      gils::name)
+	    (*cur-directory* *following-directory*))
 	(with-open-file
-	    (*standard-output* (sanitized-link "~a.html" gils::name)
-		:direction :output
-		:if-exists :supersede :if-does-not-exist :create)
+	    (*standard-output*
+	     (sanitized-link
+	      *cur-directory* (format nil "~a" gils::name) ".html")
+	     :direction :output
+	     :if-exists :supersede :if-does-not-exist :create)
 	  (surround "head" ;TODO better header making.
 	    (surround "title" (call gils::title))
 	    (style))
@@ -296,12 +316,12 @@ tracked by gil-info.")
 ;;Tables.
 
 (def-call (table-el table-el)
-  (assert gils::*in-table* nil "Table elements _must_ be in a table!")
+  (assert *in-table* nil "Table elements _must_ be in a table!")
   (with-slots (gils::x-size gils::y-size
 	       gils::x-align gils::y-align gils::x-span gils::y-span
 	       gils::contents) 
       table-el
-    (let ((gils::*in-table* nil))
+    (let ((*in-table* nil))
       (surround
        (format nil "td~{ ~a~}"
 	       (append
@@ -328,7 +348,7 @@ tracked by gil-info.")
 (def-glist (table table) elements
   (with-slots (gils::border gils::frame gils::rules gils::width
 	       gils::cellpadding gils::cellspacing) table
-    (let ((gils::*in-table* t))
+    (let ((*in-table* t))
       (flet ((handle-el (el)
 	       (cond
 		 ((listp el)

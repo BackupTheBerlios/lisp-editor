@@ -1,15 +1,20 @@
-(cl:in-package :gil-user)
+(cl:in-package :cl-user)
 
-(require :more)
-(require :autodoc)
-(require :cl-dot)
+(defpackage :lisp-ed-website
+  (:use :common-lisp :gil :gil-vars :gil-share :gil-style
+	:gil-autodoc :gil-read))
 
-(setq expr-scan:*scan-result* (make-hash-table :test 'equalp))
+(in-package :lisp-ed-website)
+
+(setq expr-scan:*scan-result* (make-hash-table
+ :test 'equalp))
 (defun scan-stuff ()
   (let ((*default-pathname-defaults* 
-	 #p"/home/jasper/proj/lisp-umac/"))
+	 #p"/home/jasper/proj/lisp-editor/libs/"))
     (expr-scan:scan-file "generic.asd")
-    (expr-scan:scan-file "denest.asd"))
+    (expr-scan:scan-file "denest.asd")
+    (expr-scan:scan-file "lisp-ed-package-stuff.asd")
+    (expr-scan:scan-file "lisp-ed-path-stuff.asd"))
   (let ((*default-pathname-defaults* 
 	 #p"/home/jasper/proj/lisp-editor/gil/"))
     (expr-scan:scan-file "gil.asd"))
@@ -20,18 +25,6 @@
     (expr-scan:scan-file "autodoc.asd")))
 
 (scan-stuff)
-
-(defun package-link (pkg &rest objects)
-  (gil-autodoc:mention-obj (expr-scan:access-result 'defpackage pkg)
-			   objects :start 1))
-
-(defun mention+ (name &rest objects)
-  "Mentions, assuming either function or variable and not ambiguous."
-  (assert (not (keywordp name)))
-  (if-let (mention (expr-scan:access-result
-		    '(defun defgeneric defmacro defvar defparameter) name))
-    (gil-autodoc:mention-obj mention objects)
-    (u (string-downcase name))))
 
 (defun side-paned-page (sidepane)
   (gil-user::side-paned-page-handler
@@ -48,31 +41,31 @@
 
 ;Note it has to be base-track, otherwise it is super of list, and it will 
 ; do :full with the list!
-(gil-autodoc:def-document :full-with-hr*
+(def-document :full-with-hr*
     ((object expr-scan::base-track) &key)
-  (series :hr (gil-autodoc:document :full object)))
+  (series :hr (document :full object)))
 
 (defun mk-website ()
   "Makes the website. Only paginated stuff will appear as file, rest to\
  standard output."
-  (let*((*default-pathname-defaults*
-	 #p"/home/jasper/proj/lisp-editor/doc/html/")
+  (let*((*default-pathname-defaults* 
+	 #p"/home/jasper/proj/lisp-editor/doc/")
+	(*following-directory*
+	 "website/")
 	(*attempt-readable* nil)
 	(gil-info::*links* (make-hash-table))
-	(gil-autodoc::*file-root-mention*
-	 "/home/jasper/proj/lisp-editor/")
 	(site-contents
 	 (gil-contents:use-contents
-	  (gil-info:gather-contents "../website.gil")
+	  (gil-info:gather-contents "website.gil")
 	  (gil-contents:c-el-seq
 	   (:level-filter :to 1) :header :link)))
 	(autodoc
 	 (glist-list :series
 	   (mapcar
 	    (lambda (pkg)
-	      (gil-autodoc:document :pkg pkg
+	      (document :pkg pkg
 				    :doc-manners '(:full-with-hr*)))
-	    '(:generic :denest
+	    '(:generic :denest :alexandria
 	      :package-stuff :expression-hook :expression-scan
 	      
 	      :gil :gil-vars :gil-share :gil-style
@@ -84,20 +77,22 @@
 	      :gil-autodoc))))
 	(autodoc-contents
 	 (gil-contents:use-contents
-	  (gil-info:gather-contents autodoc)
+	  (let ((*following-directory* "autodoc/"))
+	    (gil-info:gather-contents autodoc))
 	  (gil-contents:c-el-seq
 	   (:level-filter :to 1) :class-style :nbsp :link)))
 	(*lang* :html))
     (with-open-file (stream "default.css" :direction :output
 			    :if-exists :supersede :if-does-not-exist :create)
-      (declare (ignore stream)))
-    (let ((gil-vars:*handle-page* (side-paned-page site-contents)))
-      (call(execute "../website.gil")))
-    (let ((gil-vars:*handle-page* (side-paned-page
+      ) ;;Clear .css.
+    (let ((*handle-page* (side-paned-page site-contents)))
+      (call(execute "website.gil")))
+    (let ((*handle-page* (side-paned-page
 			  (glist :series site-contents
 				 (inline-style "color:gray"
 				   (header 4 (u(b "Autodoc:"))))
-				 autodoc-contents))))
+				 autodoc-contents)))
+	  (*following-directory* "autodoc/"))
       (call autodoc))))
 
 (time (mk-website)) ;TODO it is warning me a bit.
@@ -134,44 +129,16 @@
        (let ((*default-pathname-defaults* (pathname (car r))))
 	 (mapcar #'expr-scan:scan-file (cdr r)))))))
 
+
+;;documenting cl-fad, however does work.
 (let ((*default-pathname-defaults*
        #p"/home/jasper/oproj/lispbuilder-read-only/lispbuilder-sdl/"))
   (expr-scan:scan-file "lispbuilder-sdl.asd"))
 
-;;documenting cl-fad, however does work.
-(let ((*default-pathname-defaults*
-       #p"/home/jasper/oproj/cl-fad-0.6.3/"))
-  (expr-scan:scan-file "cl-fad.asd"))
-
-
-(let ((*default-pathname-defaults*
-       #p"/home/jasper/proj/lisp-editor/doc/autodoc/")
-      (gils::*section-page-level* 0)
-      (*lang* :txt))
-  (with-open-file (*standard-output* "cl-fad.txt"
-    	     	    :direction :output :if-does-not-exist :create
-		    :if-exists :supersede)
-    (call (gil-autodoc:document :pkg :cl-fad))))
-
-
-(with-open-file (*standard-output* "doc/autodoc/cl-fad.tex"
-		 :direction :output :if-does-not-exist :create
-		 :if-exists :supersede)
-  (let ((gils::*section-page-level* 0)
-	(*lang* :latex))
-    (call (gil-autodoc:document :pkg :cl-fad))))
-
-(with-open-file (*standard-output* "doc/autodoc/cl-fad.html"
-		 :direction :output :if-does-not-exist :create
-		 :if-exists :supersede)
-  (let ((gils::*section-page-level* 0)
-	(*lang* :html))
-    (call (gil-autodoc:document :cl-fad :pkg 2))))
-
 (let ((*default-pathname-defaults*
        #p"/home/jasper/proj/lisp-editor/doc/")
       (*lang* :html)
-      (gils::*attempt-readable* nil)
+      (*attempt-readable* nil)
       (gil-html::*default-style-file* "default.css"))
   (with-open-file (*standard-output* "principles.html"
 	 	     :direction :output :if-does-not-exist :create
@@ -179,3 +146,7 @@
     (call (gil-html::style))
     (call (execute "principles.gil"))))
 
+(let ((*lang* :latex))
+  (call (section 4 "a" (link "miauw" "b") "kaka 24154 512" "35235252" (b "234"))))
+
+(load "gil/output/latex.lisp")

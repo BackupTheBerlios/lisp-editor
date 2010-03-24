@@ -144,7 +144,7 @@ $(progn
 
     (p Another instance is (mention+ $'expr-scan:def-scanner defining your
      own expression scanner), and accompanying 
-  (mention+ $'gil-autodoc:def-document documenter.))
+  (mention+ $'def-document documenter.))
 
     (p Of course, some of this might sound like being too involved for many,
        we should provide a bunch of stuff more based on parameters.))

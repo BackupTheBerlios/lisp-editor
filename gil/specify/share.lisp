@@ -29,7 +29,7 @@
 	   link follow-link
 	   
 	   base-image file-image
-	   table table-el col-table)
+	   *in-table* table table-el col-table)
   (:documentation "Various specifying objects and directly attached\
  functions to help use them."))
 

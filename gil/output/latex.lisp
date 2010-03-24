@@ -16,14 +16,13 @@
   (:documentation "Latex output of General Interface Library/Language.
 Goes by symbol :latex
 
-TODO changes were made to break it, in process of making it work again.
-
 TODO no styles, latex aught to be able to do a bunch of it.
 
 TODO/NOTE completely untested other then inspection of result.
+
 TODO equations would be neat to have, and crazy not to have.
 1)I want the capability to have identical interface in other outputs!
-2)S-expressions first, non-s-expression input form later."))
+2)Via s-expressions first, non-s-expression input form later."))
 
 (in-package :gil-latex)
 
@@ -33,32 +32,51 @@ TODO equations would be neat to have, and crazy not to have.
 
 (defun surround-fn (with fill)
   "Puts \\name{} around."
+  (when *attempt-readable* (dump-txt :newline nil))
   (format t "\\~a{" with)
   (funcall fill)
+  (when *attempt-readable* (dump-txt :newline nil))
   (format t "}"))
 
 (defmacro surround-be (with &body body)
   `(surround-fn ,with (lambda () ,@body)))
 
+(defmacro call-format (cstr &rest args)
+  `(call (format nil ,cstr ,@args)))
+
 (defun surround-be-fn (with fill)
   "Puts \\begin{} and \\end{} around."
-  (format t "\\begin{~a}~%" with)
+  (when *attempt-readable* (dump-txt))
+  (call-format "\\begin{~a}~%" with)
   (funcall fill)
-  (format t "\\end{~a}~%" with))
+  (when *attempt-readable* (dump-txt))
+  (call-format "\\end{~a}~%" with))
 
 (def-call (fun function)
   (funcall fun))
 
 (def-call (sym symbol)
-  (format t "\\~a" sym))
+  (call-format "\\~a" sym))
 
 (def-call (string string)
-  (format t string))
+  (if *attempt-readable* (add-txt string) (format t string)))
 
 (def-call (num number)
-  (format t "~a" num))
+  (call-format "~a" num))
 
-(def-call :table-of-contents (format t "\\tableofcontents"))
+(def-call :newline (call-format "~%"))
+
+;TODO perhaps mode for turning this into gil-generated table of contents.
+(def-call :table-of-contents (call-format "\\tableofcontents"))
+
+(def-call (null null))
+
+(def-call (list list)
+  (error "Huh, a list? ~s" list))
+
+;Ignore what you don't know, because programs are unimaginative.
+(def-glist (not-recognized t) objects
+  (call-list objects))
 
 ;;What is the difference between Latex quote and quotation??
 (def-glist :quotation objects
@@ -73,14 +91,14 @@ TODO equations would be neat to have, and crazy not to have.
 (def-glist (dot lister) list
   (surround-be "itemize"
     (dolist (el list) ;TODO more of them.
-      (format t "~%\\item~D " (case (slot-value dot 'gils::style)
+      (call-format "~%\\item~D " (case (slot-value dot 'gils::style)
 			       (:square "[+]") (t "")))
       (call el))))
 
 (def-glist :numbered-list list
   (surround-be "enumerate" ;TODO more of them.
     (dolist (el list)
-      (format t "~%\\item ")
+      (call-format "~%\\item ")
       (call el))))
 
 (def-glist :descriptions list
@@ -89,8 +107,7 @@ TODO equations would be neat to have, and crazy not to have.
       (call "\\item [") (call (car el)) (call "]")
       (call-list (cdr el)))))
 
-;;TODO might be able to do links.
-
+;Basic modifiers.
 (def-glist :bold objects
   (surround "textbf" (call-list objects)))
 
@@ -100,15 +117,18 @@ TODO equations would be neat to have, and crazy not to have.
 (def-glist :underlined objects
   (surround "underline" (call-list objects)))
 
+;;TODO might be able to do links.
+
+;;Headers an section.
 (defun do-header (header title)
   (with-slots (gils::level) header
-    (surround (format nil "~Dsection" (case gils::level
+    (surround (format nil "~asection" (case gils::level
 					 ((1 2) "") (3     "sub")
 					 (t     "subsub")))
       (call title))))
 
 (def-glist (header header) objects
-  (do-header header objects))
+  (do-header header (glist-list :series objects)))
 
 (def-glist (section section) objects
   (do-header section (slot-value section 'gils::title))
@@ -118,11 +138,11 @@ TODO equations would be neat to have, and crazy not to have.
 ;;Image
 (def-glist (image base-image) objects
   (declare (ignore objects))
-  (format t "<~D>" (string-downcase (symbol-name (type-of image)))))
+  (call-format "<~D>" (string-downcase (symbol-name (type-of image)))))
 
 (def-glist (image file-image) objects ;TODO pretty basic.
   (declare (ignore objects))
-  (format t "\includegraphics{~D}" (slot-value image 'gils::file-name)))
+  (call-format "\includegraphics{~D}" (slot-value image 'gils::file-name)))
 
 ;;Table
 
@@ -131,22 +151,22 @@ TODO equations would be neat to have, and crazy not to have.
 
 (defun table-guts (table cols elements)
   (denest:denest
-   (let ((gils::*in-table* t)))
+   (let ((*in-table* t)))
    (with-slots (gils::width gils::border) table)
    (surround-be (if gils::width "tabular*" "tabular")
      (if gils::width
        (case (last-ch gils::width)
-	 (#\% (format t "{0.~a\\textwidth}{@{\\extracolsep{\\fill}}" 
+	 (#\% (call-format "{0.~a\\textwidth}{@{\\extracolsep{\\fill}}" 
 		       (subseq gils::width 0 (- (length gils::width) 2))))
-	 (t   (format t "{~a}{@{\\extracolsep{\\fill}}" gils::width)))
-       (format t "{")) ;TODO Hopefully it will figure it out itself?
+	 (t   (call-format "{~a}{@{\\extracolsep{\\fill}}" gils::width)))
+       (call-format "{")) ;TODO Hopefully it will figure it out itself?
     ;Do it with multicolumn. (Inefficient, but ah well.)
-     (when gils::border (format t "|"))
+     (when gils::border (call-format "|"))
      (funcall cols)
-     (when gils::border (format t "|}"))
-     (when gils::border (format t "\\hline"))
+     (when gils::border (call-format "|}"))
+     (when gils::border (call-format "\\hline"))
      (funcall elements)
-     (when gils::border (format t "\\hline")))))
+     (when gils::border (call-format "\\hline")))))
 
 (defun x-align-style  (x-align)
   (case x-align
@@ -158,7 +178,7 @@ TODO equations would be neat to have, and crazy not to have.
 (def-glist (table col-table) list
   (table-guts table
     (lambda ()
-      (format t "~{~a~}" 
+      (call-format "~{~a~}" 
         (mapcar (lambda (col)
 		  (let ((x-align (x-align-style
 				  (or (getf col :align)
@@ -170,14 +190,15 @@ TODO equations would be neat to have, and crazy not to have.
 	(dolist (s-el el)
 	  (typecase s-el
 	    (table-el (call s-el)) ;Might override it with multicolumn.
-	    (t        (call s-el) (format t "&")))
-	  (format t "\\\\~%"))))))
+	    (t        (call s-el) (call-format "&")))
+	  (when *attempt-readable* (dump-txt :newline nil))
+	  (call-format "\\\\~%"))))))
 
 (def-glist (table table) list
   (table-guts table
     (lambda ()
       ;All done with multicolumn for table.
-      (format t "~{~a~}"
+      (call-format "~{~a~}"
 	       (make-list (reduce #'max (mapcar #'length list))
 			  :initial-element #\X)))
     (lambda ()
@@ -186,16 +207,14 @@ TODO equations would be neat to have, and crazy not to have.
 	  (typecase s-el
 	    (table-el (call s-el))
 	    (t        (call (table-el nil s-el))))
-	  (format t "\\\\~%"))))))
+	  (when *attempt-readable* (dump-txt :newline nil))
+	  (call-format "\\\\~%"))))))
 
 (def-call (el table-el)
-  (assert gils::*in-table* nil "Table elements _must_ be in a table!")
+  (assert *in-table* nil "Table elements _must_ be in a table!")
   (with-slots (gils::contents gils::y-span gils::x-align) el
     (surround "multicolumn"
-      (format t "{~a}{~a}"
+      (call-format "{~a}{~a}"
 	       (or gils::y-span 1) (x-align-style gils::x-align))
       (call-list gils::contents)))
-  (format t "&"))
-
-
-
+  (call-format "&"))

@@ -8,5 +8,6 @@
  information gathered with expression-scan, which can get information from \
 any s-expression, extra information can also be added."
   :serial t
-  :depends-on (:alexandria :generic :denest :expression-scan :gil)
+  :depends-on (:alexandria :generic :denest :lisp-ed-path-stuff
+	       :expression-scan :gil)
   :components ((:file "autodoc")))

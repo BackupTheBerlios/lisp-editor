@@ -10,7 +10,7 @@
 (cl:in-package :cl-user)
 
 (defpackage gil-read
-  (:use :common-lisp :alexandria :denest)
+  (:use :common-lisp :alexandria :denest :path-stuff)
   (:documentation "Stream reader for GIL.
 TODO needs to filter out whitespace gil-execute")
   (:export gil-read execute))
@@ -113,11 +113,16 @@ TODO needs to filter out whitespace gil-execute")
 	      (collecting (eval item)))))
      (let ((len (length file-name)))
        (with-open-file (stream file-name)
-	 (if (string= (subseq file-name (- len 5)) ".lisp")
-	   (do ((read (read stream nil :done) (read stream nil :done)))
-	       ((eql read :done) nil)
-	     (collect-eval read))
-	   (gil-read stream :fn #'collect-eval)))))))
+	 (case (intern (file-extension file-name) :keyword)
+	   (:|.lisp|
+	    (do ((read (read stream nil :done) (read stream nil :done)))
+		((eql read :done) nil)
+	      (collect-eval read)))
+	   (:|.gil|
+	    (gil-read stream :fn #'collect-eval))
+	   (t
+	    (warn "Tried to execute ~s but don't know how to deal with\
+ that." file-name))))))))
 
 (defun execute (from)
   "Reads and then produces using whatever is in gil:*lang*. 

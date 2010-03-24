@@ -41,7 +41,7 @@
 
   (section 3 $"Indexer" $nil
     Indexes words for an index, like at the end of the books. Words can
-    already be made $(mention+ 'notable), and $(package-link :gil-info)
+    already be made $(mention+ 'notable), and $(mention+ :gil-info)
     picks them up, but there is nothing to use it yet.)
     
   (section 3 $"Autodocumentation" $nil

@@ -7,10 +7,10 @@
 ;;  (at your option) any later version.
 ;;
 
-(defpackage :file-stuff-test
-  (:use :common-lisp :generic :file-stuff))
+(defpackage :path-stuff-test
+  (:use :common-lisp :generic :path-stuff))
 
-(in-package :file-stuff-test)
+(in-package :path-stuff-test)
 
 (defun random-path (&key maxdepth (depth (random maxdepth)) maxnum)
   (format nil "~{~a/~}"
@@ -32,7 +32,7 @@
 	     (random-path-relative relative
 	       :maxrel maxrel :maxdepth maxdepth :maxnum maxnum))
 	    (inter
-	     (from-file-root path relative))
+	     (from-path-root path relative))
 	    (back-forth
 	     (to-absolute (format nil "~a~a" relative inter))))
 	(assert (string= back-forth path) nil

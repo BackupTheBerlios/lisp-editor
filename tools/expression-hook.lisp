@@ -102,17 +102,18 @@ Used for gathering information on code autodoc via expression-scan."))
    (if (listp (car form))
      (case (caar form)
        (lambda
-	 (with-gensyms (fn)
-	   (expand-hook `(flet ((,fn ,@(cdar form)))
-			   (,fn ,@(cdr form))))))
-       (t (error "Unrecognized s-expression car-list."))))
+ 	  (with-gensyms (fn)
+	    (expand-hook `(flet ((,fn ,@(cdar form)))
+			    (,fn ,@(cdr form))))))
+       (t (warn "Unrecognized s-expression car-list. ~a" (car form))
+	  form)))
   ;Ignored parts.
    (if (find (symbol-package (car form)) *ignore-packages*
 	     :test #'same-package)
      form)
   ;Possible macrolets.
    (if-let (m (assoc (car form) *eh-macs*))
-     (expand (funcall (cadr m) (cdr form))))
+     (expand (apply(cadr m) (cdr form))))
   ;Possible flets.
    (if (find (car form) *eh-funs*)
      `(,(car form) ,@(e-list (cdr form))))
@@ -159,7 +160,8 @@ Used for gathering information on code autodoc via expression-scan."))
   (let ((*eh-sym-macs*
 	 (append (mapcar (lambda (m)
 			   (destructuring-bind (name to) m
-			     (list name *in-funs* to))) macs)
+			     (list name *in-funs* to)))
+			 macs)
 		 *eh-sym-macs*)))
     `(,sm (,@macs) ,@(e-list body))))
 
@@ -257,11 +259,12 @@ Used for gathering information on code autodoc via expression-scan."))
   (multiple-value-bind (res names) (expand-funs funs :flat-arg t)
     (declare (ignore res))
     (let ((*eh-macs*
-	   (append *eh-macs*
-	     (mapcar (lambda (name)
-		       (list name
-			     (eval `(lambda ,@(cdr (assoc name funs))))))
-		     names))))
+	   (append
+	    (mapcar (lambda (name)
+		      (list name
+			    (eval `(lambda ,@(cdr (assoc name funs))))))
+		    names)
+	    *eh-macs*)))
       `(,macrolet (,@funs) ,@(e-list body)))))
 
 (defun function-name-p (name)
@@ -331,7 +334,7 @@ Used for gathering information on code autodoc via expression-scan."))
 
 ;;TODO will want to indicate we're in a defclass/defstruct??
 (def-base-macro defclass
-    (defclass name derive-from components &optional rest)
+    (defclass name derive-from components &rest rest)
   (declare (ignore defclass name derive-from rest))
   (dolist (el components) ;Only expand the bits we want.
     (expand (getf (cdr el) :initform))))
@@ -342,3 +345,5 @@ Used for gathering information on code autodoc via expression-scan."))
     (when (listp el)
       (expand (cadr el)))))
 
+(def-base-macro rotatef (&rest args)
+  (e-list args))

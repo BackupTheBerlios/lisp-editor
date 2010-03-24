@@ -28,17 +28,9 @@ TODO:
 		 (string-downcase
 		  (subseq name (+ (position #\_ name :from-end t) 1))))))
 
-(defmethod graph-object-node ((graph (eql 'graph-scanned)) object)
-  (make-instance 'node
-    :attributes `(:label ,(document :title-short object))))
-
-(defmethod graph-object-node
-    ((graph (eql 'graph-scanned)) (method track-method))
-  (make-instance 'node :attributes '(:label ".")))
-
-
 (defun package-keyword (sym)
-  (intern (to-package-name sym) :keyword))
+  (when-let (package-name (when sym (to-package-name sym)))
+    (intern package-name :keyword)))
 
 (defun boring-link (sym in-package)
   "Whether a link is uninteresting. (As-in water under the bridge,)"
@@ -47,7 +39,7 @@ TODO:
      nil)
     (t ;;Generic is always boring seen from outside.
      (case (package-keyword sym)
-       (:generic t) (:denest t)))))
+       (:generic t) (:denest t) (:alexandria)))))
 
 (defun when-access (defined-by in-package)
   (lambda (sym)
@@ -64,38 +56,73 @@ TODO:
 	    (mapcan (when-access '(defvar defparameter) in-package) 
 		    var-dep))))
 
+;;Graphing fully; connections between functions.
+(defmethod graph-object-node ((graph (eql 'full)) (null null)))
+
+(defmethod graph-object-node ((graph (eql 'full)) object)
+  (make-instance 'node
+    :attributes `(:label ,(document :title-short object))))
+
+(defmethod graph-object-node
+    ((graph (eql 'full)) (method track-method))
+  (make-instance 'node :attributes '(:label ".")))
+
 (defmethod graph-object-points-to
-    ((graph (eql 'graph-scanned)) (track track-form))
+    ((graph (eql 'full)) (track track-form))
   (destructuring-bind (definer name &rest assoc)
       (slot-value track 'expr-scan::form)
     (let ((pkg (package-keyword name)))
       (case definer
 	(defpackage
-	 (flet ((coerce-package (sym)
-		  (intern (symbol-name sym) (find-package name))))
+	 (flet ((coerce-package (sym &key (package (find-package name)))
+		  (intern (symbol-name sym) package)))
 	   (append
 	    (mapcan (when-access '(defun defmacro defvar defparameter) pkg)
 		    (mapcar #'coerce-package (cdr(assoc :export assoc))))
 	     ;Note: assumes stuff on how declared.
 	    (mapcan (when-access '(defpackage) pkg)
-		    (mapcar #'coerce-package (cdr(assoc :use assoc)))))))
+		    (mapcar #'package-keyword (cdr(assoc :use assoc)))))))
 	(defgeneric
 	 (dep-link track pkg))))))
 
 (defmethod graph-object-points-to
-    ((graph (eql 'graph-scanned)) (fun track-fun))
+    ((graph (eql 'full)) (fun track-fun))
   (dep-link fun (package-keyword (name fun))))
 
 (defmethod graph-object-points-to
-    ((graph (eql 'graph-scanned)) (fun track-generic))
+    ((graph (eql 'full)) (fun track-generic))
   (append (dep-link fun (package-keyword (name fun)))
 	  (slot-value fun 'expr-scan::methods)))
 
 (defmethod graph-object-points-to
-    ((graph (eql 'graph-scanned)) (method track-method))
+    ((graph (eql 'full)) (method track-method))
   (dep-link method (package-keyword (name method))))
 
-(let ((dgraph
+;Graphing just connections between packages.
+(defmethod graph-object-node ((graph (eql 'package)) (null null)))
+(defmethod graph-object-node ((graph (eql 'package)) object)
+  (make-instance 'node
+    :attributes `(:label ,(document :title-short object))))
+
+(defmethod graph-object-points-to
+    ((graph (eql 'package)) (track track-form))
+  (destructuring-bind (definer name &rest assoc)
+      (slot-value track 'expr-scan::form)
+    (case definer
+      (defpackage
+       ;Note: assumes stuff on how declared.
+	 (mapcan
+	  (lambda (pkg)
+	    (when-let (got (access-result 'defpackage 
+					  (package-keyword pkg)))
+	      (list got)))
+	  (cdr(assoc :use assoc)))))))
+
+
+
+
+#|
+ (let ((dgraph
        (generate-graph-from-roots
 	'graph-scanned
 	(graph-object-points-to
@@ -104,23 +131,25 @@ TODO:
 ;  (cl-graph-object-points-to
 ;   'graph-scanned (access-result 'defpackage :generic)))
 
-(time
+ (time
  (let*((root
-       (mapcan
-	(lambda (pkg)
-	  (graph-object-points-to 'graph-scanned (access-result 'defpackage pkg)))
-	'(:generic :denest
-	  :package-stuff :expression-hook :expression-scan
-	  
-	  :gil :gil-vars :gil-share :gil-style
-	  :gil-read :gil-info :gil-user
-	  :gil-output-util :gil-html :gil-txt :gil-latex
-	  
-	  :gil-contents :gil-log
-	  
-	  :gil-autodoc)))
-      (dgraph
-       (generate-graph-from-roots 'graph-scanned root)))
-  (cl-dot:dot-graph dgraph "/home/jasper/proj/lisp-editor.png"
-		    :format :png)))
+	(mapcan
+	 (lambda (pkg)
+	   (graph-object-points-to 'graph-scanned
+				   (access-result 'defpackage pkg)))
+	 '(:generic :denest
+	   :package-stuff :expression-hook :expression-scan
+	   
+	   :gil :gil-vars :gil-share :gil-style
+	   :gil-read :gil-info :gil-user
+	   :gil-output-util :gil-html :gil-txt :gil-latex
+	   
+	   :gil-contents :gil-log
+	   
+	   :gil-autodoc)))
+       (dgraph
+	(generate-graph-from-roots 'graph-scanned root)))
+   (cl-dot:dot-graph dgraph "/home/jasper/proj/lisp-editor.png"
+		     :format :png)))
  
+|#

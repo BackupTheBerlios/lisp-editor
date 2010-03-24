@@ -10,11 +10,11 @@
 (cl:in-package :cl)
 
 (defpackage gil-output-util
-  (:use :common-lisp :generic :gil :gil-share :gil-vars)
+  (:use :common-lisp :generic :gil :gil-share :gil-vars :gil-comms)
   (:export remove-gratuous-whitespace is-break
 	   *indent-delta* indent add-txt dump-txt
 	   wformat
-	   xml-surround)
+	   xml-surround def-xml-surrounding-glist)
   (:documentation "Some basic utility functions for manipulating strings,\
  writing."))
 
@@ -43,7 +43,7 @@
   (not (or (alpha-char-p ch) (case ch ((#\. #\, #\: #\;) t)))))
 
 (defun find-split
-    (str &key (split-ratio gils::*acceptable-line-split-ratio*)
+    (str &key (split-ratio *acceptable-line-split-ratio*)
               (line-len *line-len*))
   "Finds a place to split a line."
   (do ((i (length str) (position-if #'is-break str :from-end t :end i)))
@@ -90,9 +90,14 @@
   (setq *have-txt* ""))
 
 (defun xml-surround-fn (with fill)
-  (wformat (if fill "<~a~a>" "<~a~a \>") with)
+  (wformat (if fill "<~a>" "<~a \>") with)
   (when fill (funcall fill))
   (wformat "</~a>" (subseq with 0 (position #\Space with))))
 
 (defmacro xml-surround (with &body body)
   `(xml-surround-fn ,with (lambda () ,@body)))
+
+(defmacro def-xml-surrounding-glist (way with &optional accepts-style)
+  (with-gensyms (objects)
+    `(def-glist ,way ,objects
+       (xml-surround ,with (call-list ,objects)))))
