@@ -136,8 +136,8 @@ Used for gathering information on code autodoc via expression-scan."))
   (denest
    (collecting (nil binds col-bind))
    (collecting (nil *eh-vars* col-var))
-   (:return
-     `(,let (,@binds) ,@(e-list body)))
+   (:return-this
+     (`(,let (,@binds) ,@(e-list body))))
    (dolist (v vars)
      (cond
        ((listp v) v
@@ -172,30 +172,30 @@ Used for gathering information on code autodoc via expression-scan."))
   "Base treatment of function."
   (declare (ignore flat-arg))
   (let ((*in-funs* (cons name *in-funs*)))
-    `((,@(denest* 
-	  (let state)
-	  (collecting nil arg col-arg) ;TODO pretty bad.
-	  (collecting nil key col-key)
-	  (collecting nil opt col-opt)
-	  (collecting nil rest col-rest)
-	  (:* :return `(,@arg ,@(when opt `(&key ,@opt))
-			      ,@(when key `(&optional ,@key))
-			      ,@(when rest `(&rest ,@rest))))
-	  (:* dolist (a args)
-	      (case a
-		((&key &optional &rest) (setf state a))
-		(t (case state
-		     (&key
-		      (col-key
-		       (if (listp a)
-			   `(,(car a) ,(expand (cadr a))) a)))
-		     (&optional 
-		      (col-opt
-		       (if (listp a)
-			   `(,(car a) ,(expand (cadr a))) a)))
-		     (&rest 
-		      (col-rest a))
-		     (t (col-arg a))))))))
+    `((,@(denest
+	  (let (state))
+	  (collecting (nil arg col-arg)) ;TODO pretty bad.
+	  (collecting (nil key col-key))
+	  (collecting (nil opt col-opt))
+	  (collecting (nil rest col-rest))
+	  (:return-this (`(,@arg ,@(when opt `(&key ,@opt))
+				 ,@(when key `(&optional ,@key))
+				 ,@(when rest `(&rest ,@rest)))))
+	  (dolist (a args)
+	    (case a
+	      ((&key &optional &rest) (setf state a))
+	      (t (case state
+		   (&key
+		    (col-key
+		     (if (listp a)
+		       `(,(car a) ,(expand (cadr a))) a)))
+		   (&optional 
+		    (col-opt
+		     (if (listp a)
+			 `(,(car a) ,(expand (cadr a))) a)))
+		   (&rest 
+		    (col-rest a))
+		   (t (col-arg a))))))))
       ,@(e-list body))))
 
 (def-base-macro defun (defun name (&rest args) &body body)
@@ -237,7 +237,7 @@ Used for gathering information on code autodoc via expression-scan."))
   (declare (ignorable flat-arg))
   (denest (collecting (nil cr col-result))
 	  (collecting (nil cn col-names))
-	  (:return (values cr cn))
+	  (:return-this ((values cr cn)))
 	  (dolist (fun funs)
 	    (destructuring-bind (name (&rest args) &body body) fun
 	      (col-result `(,name ,@(base-fun name args body :flat-arg flat-arg)))

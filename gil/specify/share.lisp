@@ -51,9 +51,10 @@
 ;;---Lists
 (def-glist-caller p () "List of paragraphs." :p)
 (def-glist-caller series () "Just chains the objects." :series)
-(def-glist-caller point-list () "List of points." :list)
-(def-glist-caller alt-point-list () 
-  "List of alternative style points." :alt-list)
+(def-glist-caller point-list () "List of points." 
+  (make-instance 'lister :style :list))
+(def-glist-caller alt-point-list ()  "List of alternative style points."
+  (make-instance 'lister :style :alt-list))
 (def-glist-caller description-list ()
   "List of described stuff" :descriptions)
 
@@ -66,6 +67,9 @@
 (defclass lister ()
   ((style :initarg :style))
   (:documentation "Dots being represented as some text."))
+
+(defun lister (style &rest objects)
+  (glist-list (make-instance 'lister :style style) objects))
 
 (def-glist-caller numbered-list () "Numbered list." :numbered-list)
 

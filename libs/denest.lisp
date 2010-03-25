@@ -5,9 +5,7 @@
 
 (defpackage :denest
   (:use :common-lisp)
-  (:export denest denest*
-	   *denest-macros* def-denest-macro use-denest-macro
-	   denest-ret finish leave
+  (:export denest def-denest-macro use-denest-macro
 	 ;Accumulators and reducers. Here because they need to expose
          ;flet/macrolet to user.
 	   accumulating summing collecting appending
@@ -28,11 +26,25 @@ Can it be done?"))
 
 (in-package :denest)
 
-(defmacro denest-ret (&body body)
-  "Marks where to go back to when the macro returns.
- Only thing that might ever need changing in macros. Doesn't affect normal\
- operation of macro."
-  `(block denest-prev-ret ,@body))
+(defmacro denest (&rest forms)
+  "Un-nests stuff, reconstructs macros in order with the body at the end.
+Best and easiest description is:
+ (defmacro denest (&rest args)
+   (if (null (cdr args))
+     (car args)
+     `(,@(car args)
+       (denest ,@(cdr args)))))
+All the actual version does is attach denest-specific macros on keywords,
+and provide a top block."
+  (labels ((expand (forms)
+	     (cond
+	       ((null (cdr forms))
+		(car forms))
+	       ((keywordp (caar forms))
+		`(use-denest-macro ,@(car forms) (denest ,@(cdr forms))))
+	       (t
+		`(,@(car forms) ,(expand (cdr forms)))))))
+    `(block denest-top ,(expand forms))))
 
 (defvar *denest-macros* (make-hash-table)
   "Macros for denest when given a keyword.")
@@ -50,48 +62,14 @@ Can it be done?"))
 	       ,@body)))
        (setf (gethash ,name *denest-macros*) #'denest-keyword-macro))))
 
+(defun synonym (of &rest syns)
+  (let ((of (gethash of *denest-macros*)))
+    (mapcar (lambda (name) (setf (gethash name *denest-macros*) of))
+	    syns)))
+
 (defmacro use-denest-macro (name &rest args)
   "Applies a denest macro."
   (funcall (gethash name *denest-macros*) args))
-
-(defmacro denest-raw (&rest args)
-  "Raw version of denest. Doesn't add the blocks and macrolets."
-  (cond
-    ((null (cdr args))
-     (if (keywordp (caar args))
-       `(use-denest-macro ,@(car args))
-       (car args)))
-    ((keywordp (caar args))
-     (funcall (gethash (caar args) *denest-macros*)
-	      `(,@(cdar args) (denest-raw ,@(cdr args)))))
-    (t
-     `(,@(car args)
-	 (denest-raw ,@(cdr args))))))
-
-(defmacro denest (&rest args)
-  "Un-nests stuff, reconstructs macros in order with the body at the end.
-Best and easiest description is: (But the actual version has some more 
- (defmacro denest (&rest args)
-   (if (null (cdr args))
-     (car args)
-     `(,@(car args)
-       (denest ,@(cdr args)))))"
-  `(block denest
-     (block denest-prev-ret
-       (macrolet ((finish ()
-		    '(return-from denest-prev-ret))
-		  (leave (returning)
-		    `(return-from denest ,returning)))
-	 (denest-raw ,@args)))))
-
-(defmacro denest* (&rest arguments)
-  "denest, but adds some parenthesis so you don't have to write them. 
-Has significant disadvantage; can't do stuff where the body location isn't\
- entirely indicated by the parenthesis, like in WITH-SLOTS,\
- DESTRUCTURING-BIND, MULTIPLE-VALUE-BIND."
-  `(denest ,@(mapcar (lambda (a)
-		       (destructuring-bind (name &rest args) a
-			 `(,name (,@args)))) arguments)))
 
 ;;--------------------------------------------------------------------------
 
@@ -114,7 +92,7 @@ Multiple accumulations need to go by different names."
 		    (error "Accumulation use does nothing."))
 		  (list 'setf ',onto
 			(append '(,@operation ,onto) args))))
-       (denest-ret ,@body))
+       ,@body)
      ,onto))
 
 (defmacro summing ((&optional initial (onto (gensym)) without-let)
@@ -143,7 +121,7 @@ If you want to use two different collectings, you need to provide the\
 		  (,append-1 a)))
 	      (,collect (&rest collected)
 		(,append-1 collected)))
-	 (denest-ret ,@body)))
+	 ,@body))
      ,onto))
 
 (defmacro besting ((valuator &key intermediate initial (best (gensym))
@@ -168,73 +146,29 @@ If you want to use two different collectings, you need to provide the\
   "Minimized a number. WARNING, TODO can get rid of initial?"
   `(besting (< :initial ,initial :best ,min :by-name  minimizing) ,@body))
 
-;;Returning/finishing.
-(def-denest-macro :return-from (from returned &body body)
-  "Coerce what is being returned. If using with denest-macro, note which\
- variables you do and don't have.
-Needs a block to return to, 'denest is always the top block."
-  (when (and (listp returned) (listp (car returned)))
-    (setf returned (car returned)))
-  `(progn (block denest-prev-ret ,@body)
-	  (return-from ,from ,returned)))
-
-(def-denest-macro :return (returned &body body)
-  "Returns to the top block (The block DENEST.)"
-  `(use-denest-macro :return-from denest ,returned ,@body))
-
-(defmacro return-accumulate ((&rest accumulation-manners) &body body)
-  "Produces accumulation into different values-output..
-Must given accumulation-manners given in same way as denest ones, they must\
- have form (macro-name (something accumulating-variable ...) ...)"
-  (denest
-    (collecting (nil vars col-var)) ;TODO Unreachable code?
-    (collecting (nil accum col-accum))
-    (:return `(denest ,@accum
-		(:return (values ,@vars))
-		(progn ,@body)))
-    (dolist (a accumulation-manners)
-      (cond
-	((listp a)
-	 (destructuring-bind (name (&optional initial var &rest more)
-				   &rest rest) a
-	   (declare (ignore more))
-	   (cond
-	     (var (col-var var)
-		  (col-accum a))
-	     (t
-	      (let ((var (gensym)))
-		(col-var var)
-		(col-accum `(,name (,initial ,var) ,@rest)))))))
-	(t
-	 (col-var a))))))
-
-(defmacro return-accumulate*((&rest accumulation-manners) &body body)
-  "Same as return-accumulate, but allows for less parentheses."
-  `(return-accumulate (,@(mapcar (lambda (a) (if (listp a)
-					       `(,(car a) (,@(cdr a))) a))
-				 accumulation-manners)) ,@body))
-
-(def-denest-macro :when-return (cond returned &body body)
-  "Return when condition true. Can be used to return something when you\
- find something."
-  `(if ,cond (return-from denest ,returned) (progn ,@body)))
-
-(def-denest-macro :unless-return (cond returned &body body)
-  "Return when condition false. Can be used to return something when you\
- find something."
-  `(if (not ,cond) (return-from denest ,returned) (progn ,@body)))
-
-(def-denest-macro :find (cond returned &body body)
-  "Renaming of when-return so that people will find that you can use it\
- to find stuff."
-  `(use-denest-macro :when-return ,cond ,returned ,@body))
-
 ;;Finishing.
-(def-denest-macro :until ((cond &optional (to 'denest-prev-ret)) &body body)
-  `(if ,cond (return-from ,to) (progn ,@body)))
+(def-denest-macro :until ((cond &optional return (to 'denest-top)) 
+			  &body body)
+  `(if ,cond (return-from ,to ,return) (progn ,@body)))
 
-(def-denest-macro :while ((cond &optional (to 'denest-prev-ret)) &body body)
-  `(if (not ,cond) (return-from ,to) (progn ,@body)))
+(def-denest-macro :while ((cond &optional return (to 'denest-top)) 
+			  &body body)
+  `(if (not ,cond) (return-from ,to ,return) (progn ,@body)))
+
+(synonym :until :when-return)
+(synonym :while :unless-return :find)
+
+(def-denest-macro :next-returns ((&optional (block 'denest-top))
+				 &body body)
+  "Make the next statement be what is returned. (Last come first served)
+`(return-from ,block (progn ,@body)))"
+  `(return-from ,block (progn ,@body)))
+
+(def-denest-macro :return-this ((value &optional (block 'denest-top))
+				&body body)
+  "Make the next value returned. (Last come first served)
+  `(progn ,@body (return-from ,block ,value))"
+  `(progn ,@body (return-from ,block ,value)))
 
 ;;Some iterators.
 (def-denest-macro :integer-interval ((i from to &optional (by 1))
@@ -280,20 +214,17 @@ Symbols are symbol-macrolets such that they're setf-able."
 ;;Other
 
 (def-denest-macro :firstly ((&body do) &body body)
-  "Do something at the start."
+  "Do something at the start. ]prog ,@do ,@body)"
   `(progn ,@do ,@body))
 
 (def-denest-macro :lastly ((&body do) &body body)
-  "Do something at the end, skipped if returned in some way."
+  "Do something at the end, skipped if returned in some way.
+ (progn ,@body)"
   `(progn ,@body ,@do))
 
 (def-denest-macro :cond ((&rest clauses) &body body)
   "Uses COND, the body is that t condition."
   `(cond ,@clauses (t ,@body)))
-
-(def-denest-macro :* ((name &rest args) &body body)
-  "Little macro to be able to give arguments the regular way in DENEST*"
-  `(,@(when (keywordp name) '(use-denest-macro)) ,name ,@args ,@body))
 
 ;;Very basic stuff, just to make writing it shorter.
 

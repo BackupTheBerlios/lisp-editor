@@ -19,9 +19,6 @@ tracked by gil-info.")
 
 (in-package :gil-html)
 
-(def-glist (way t) objects
-  (glist-list way (mapcar #'call objects)))
-
 (defun may-indent ()
   (when *attempt-readable* (indent)))
 
@@ -147,10 +144,6 @@ tracked by gil-info.")
 (def-glist :series list
   (call-list list))
 
-(def-glist (style symbol) list
-  (unless (null list)
-    (call(glist-list (make-instance 'lister :style style) list))))
-
 ;;Lister here recognizes for styles (corresponding CSS.):
 ;;  none, circle, disc, square
 ;; Numberings:
@@ -220,7 +213,7 @@ tracked by gil-info.")
      (surround (format nil "a href=\"~a\"" (link-url (gils::name link)))
        (call-list objects)))
     (t
-     (call (glist-list :underline objects)))))
+     (call (glist-list :underlined objects)))))
 
 (def-glist (link link) objects
   (if (gils::name link) 
@@ -235,6 +228,7 @@ tracked by gil-info.")
 
 (def-surrounding-glist :bold "b")
 (def-surrounding-glist :italic "i")
+(def-surrounding-glist :underline "u")
 (def-surrounding-glist :underlined "u")
 (def-surrounding-glist :strike "s")
 

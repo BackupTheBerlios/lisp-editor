@@ -166,7 +166,7 @@ entered, but it is just good habit to fill those.\))
 
 (section 1 $"GIL-output" #(GIL output languages)
   Currently GIL has only html and txt output. There is a file for Latex 
-  output but doesn't work well enough. (link $"This library, outputs" see 
+  output but doesn't work well enough. (link $"Todo" see 
   here) for further todos with respect to outputs.)
 
 (section 1 $"Contributors" #(Contributors)
