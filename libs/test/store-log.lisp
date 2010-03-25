@@ -28,12 +28,6 @@
 (defclass rnd-entry (base-entry)
   ((rnd :initarg :rnd :type integer :reader rnd)))
 
-(defmethod add-directory :around
-    ((log rnd-log) (file pathname) &key (time (get-universal-time)))
-  (change-class (call-next-method :time time) 'rnd-entry
-		:rnd (with-open-file (stream file)
-		       (read stream))))
-
 (defun write-file
     (k rnd rnd-inside &optional
      (filename (format nil "~a-~a-~a" rnd k (setf- + *write-nr* 1))))
@@ -58,10 +52,14 @@
 		(with-mod-slots e- (file had-timestamp rnd) entry
 		  (assert (string= (namestring w-file) (namestring e-file))
 			  nil "Files ~a ~a" w-file e-file)
-		  (assert (= e-had-timestamp (file-write-date e-file))
-			  nil "Times")
-		  (assert (= w-rnd e-rnd) nil
-			  "Not same data; ~a ~a" w-rnd e-rnd))))
+;		  (assert (= e-had-timestamp (file-write-date e-file))
+;			  nil "Times")
+		  (assert (eql (type-of writ) (type-of entry)) nil
+			  "Incorrect typing. ~a!=~a, ~s"
+			  (type-of writ) (type-of entry) w-file)
+		  (when (eql (type-of writ) 'rnd-entry)
+		    (assert (= w-rnd e-rnd) nil
+			    "Not same data; ~a ~a" w-rnd e-rnd)))))
 	    (setf- sort *written* #'sortfn)
 	    (setf- sort (slot-value *test-log* 'entries) #'sortfn)))
   (assert (= (length *written*) (length (entries *test-log*)))
@@ -72,13 +70,18 @@
 (defparameter *testing-directory* 
   #p"/home/jasper/proj/lisp-editor/libs/test/log-plaything/")
 
-(defmethod add-entry :around ((log rnd-log) add
+(defmethod add-entry :around ((log rnd-log) (add pathname)
 			      &key (time (get-universal-time)))
-  (print :nexted)
-  (let ((entry (call-next-method log add :time time)))
-    (change-class entry 'rnd-entry
-		  :rnd (with-open-file (stream (file entry))
-			 (read stream)))))
+  (let*((entry (call-next-method log add :time time))
+	(read  (with-open-file (stream (file entry))
+		 (read stream))))
+    (if (numberp read)
+      (change-class entry 'rnd-entry :rnd read)
+      entry)))
+
+(defmethod add-entry ((log rnd-log) (add string)
+		      &key (time (get-universal-time)))
+  (add-entry log (pathname add) :time time))
 
 (defun test (steps files-per-step)
   "Steps a bunch of steps, doing random stuff."
@@ -87,12 +90,13 @@
   (ensure-directories-exist *testing-directory*)
  ;Make directory to test in.
   (let ((*default-pathname-defaults* *testing-directory*)
-	(*written* (list (make-instance 'rnd-entry 
-			   :file "test-log" :rnd 0)))
+	(*written* (list (make-instance 'base-entry 
+			   :file "test-log")))
 	(*write-nr* 0) (*check-nr* 0)
 	(data (random 1.0)))
-    ;Initialize, save.
-    (with-log (*test-log* "test-log")
+    ;Initialize, save. 
+    (with-log (*test-log* (make-instance 'rnd-log
+			    :file "test-log" :rnd data))
       (when (= 0 (random 2))
 	(random-write (random files-per-step))))
     
@@ -107,6 +111,4 @@
       (check-correspondence)))
   (delete-directory-and-files *testing-directory*))
 
-(test 20 20)
-
-(make-instance 'base-log :from-log "lala")
+(time (test 20 4))

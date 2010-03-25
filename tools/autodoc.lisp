@@ -27,7 +27,7 @@ TODO messy file."))
 
 (defun documentation* (of type)
   (when-let (docstr (documentation of type))
-    docstr));TODO
+    docstr));TODO make it respect newlines.
 
 (defvar *autodoc-dir* ""
   "Autodocumentation automatically to separate directory.
@@ -105,11 +105,16 @@ Probably will want document internal stuff too."
 (defun mention+ (name &rest objects)
   "Mentions, assuming either (generic)function, macro, variable or\
  package (via keyword), if ambiguous, in that order."
-  (if-let (obj (access-result
-		'(defun defgeneric defmacro defvar defparameter)
-		name))
-    (mention-obj obj objects)
-    (mention-obj (access-result 'defpackage name) objects :start 1)))	
+  (or
+   (when-let (obj (access-result
+		   '(defun defgeneric defmacro defvar defparameter)
+		   name))
+     (mention-obj obj objects))
+   (when-let (pkg-obj (access-result 'defpackage name))
+     (mention-obj pkg-obj objects :start 1))
+   (unless (null objects)
+     (glist-list :series objects))
+   (u (string-downcase name))))
 
 ;;Mentioning files. (Files may get objects at some point?)
 (defvar *path-root-mention* nil

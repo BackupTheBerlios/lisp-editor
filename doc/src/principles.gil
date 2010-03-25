@@ -133,14 +133,15 @@ $(progn
 
   (section 3 $"Other ways to prepare" $nil
     Sometimes the 'preparation' if one wants to customize much can consist
-     of defining ones own methods, possibly with macros/functions to help 
-     you do so.
+    of defining ones own methods, possibly with macros/functions to help 
+    you do so.
 
     (p For instance for contents package, there is	  
-      (mention+ $'def-c-el), with which you can either build from the given 
+      (mention+ $'gil-contents:def-c-el), with which you can either build from the given 
       elements, or make something from the bottom up. (note the latter is 
    handy if you feel it is not worth the time to absorb he idea behind 
-   composing c-el, or if what you want hasn't been created yet.))
+   composing  with (mention+ $'gil-contents:c-el), or if what you want
+    hasn't been created yet.))
 
     (p Another instance is (mention+ $'expr-scan:def-scanner defining your
      own expression scanner), and accompanying 

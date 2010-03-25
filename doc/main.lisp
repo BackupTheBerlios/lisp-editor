@@ -2,7 +2,7 @@
 
 (defpackage :lisp-ed-website
   (:use :common-lisp :gil :gil-vars :gil-share :gil-style
-	:gil-autodoc :gil-read))
+	:gil-autodoc :gil-read :gil-user))
 
 (in-package :lisp-ed-website)
 
@@ -49,9 +49,9 @@
   "Makes the website. Only paginated stuff will appear as file, rest to\
  standard output."
   (let*((*default-pathname-defaults* 
-	 #p"/home/jasper/proj/lisp-editor/doc/")
+	 #p"/home/jasper/proj/lisp-editor/doc/src/")
 	(*following-directory*
-	 "website/")
+	 "../htdocs/")
 	(*attempt-readable* nil)
 	(gil-info::*links* (make-hash-table))
 	(site-contents
@@ -64,7 +64,7 @@
 	   (mapcar
 	    (lambda (pkg)
 	      (document :pkg pkg
-				    :doc-manners '(:full-with-hr*)))
+			:doc-manners '(:full-with-hr*)))
 	    '(:generic :denest :alexandria
 	      :package-stuff :expression-hook :expression-scan
 	      
@@ -77,13 +77,13 @@
 	      :gil-autodoc))))
 	(autodoc-contents
 	 (gil-contents:use-contents
-	  (let ((*following-directory* "autodoc/"))
+	  (let ((*following-directory* "../htdocs/autodoc/"))
 	    (gil-info:gather-contents autodoc))
 	  (gil-contents:c-el-seq
 	   (:level-filter :to 1) :class-style :nbsp :link)))
 	(*lang* :html))
     (with-open-file (stream "default.css" :direction :output
-			    :if-exists :supersede :if-does-not-exist :create)
+		     :if-exists :supersede :if-does-not-exist :create)
       ) ;;Clear .css.
     (let ((*handle-page* (side-paned-page site-contents)))
       (call(execute "website.gil")))
@@ -92,7 +92,7 @@
 				 (inline-style "color:gray"
 				   (header 4 (u(b "Autodoc:"))))
 				 autodoc-contents)))
-	  (*following-directory* "autodoc/"))
+	  (*following-directory* "../htdocs/autodoc/"))
       (call autodoc))))
 
 (time (mk-website)) ;TODO it is warning me a bit.

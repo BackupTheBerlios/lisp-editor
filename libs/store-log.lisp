@@ -12,8 +12,8 @@
 (defpackage :store-log
   (:use :common-lisp :alexandria :cl-store)
   (:export
-   base-log log-file entries last-read last-write last-addition last-action
-   base-entry file last-encounter had-timestamp addition-time
+   base-log file entries last-read last-write last-addition last-action
+   base-entry last-encounter had-timestamp addition-time
    read-log add-entry with-log)
   (:documentation "Uses cl-store to keep track of files from a single\
  file, denoting when they're encountered/first added.
@@ -25,8 +25,7 @@ and (defrestore-cl-store (newtype log) .."))
 (in-package :store-log)
 
 (defclass base-log ()
-  ((log-file :initarg :log-file
-	     :reader log-file
+  ((file :initarg :file :reader file
      :documentation "File the log came from.")
    (entries :initform nil :type list :reader entries
      :documentation "Entries of files tracked.")
@@ -37,8 +36,11 @@ and (defrestore-cl-store (newtype log) .."))
   (:documentation "Log of files, the last-read/write etcetera are times\
  relating to the entire log."))
 
+(defmethod file (string)
+  string)
+
 (defmethod store ((log base-log) (to (eql :default)) &optional designator)
-  (store log (log-file log) designator))
+  (store log (file log) designator))
 
 (defrestore-cl-store (base-log place)
   (let ((log (restore-object place)))
@@ -127,7 +129,9 @@ and (defrestore-cl-store (newtype log) .."))
   (:documentation "Reads a log."))
 
 (defmethod read-log ((log base-log))
-  (add-entry log (restore (file log))))
+  (when (probe-file (file log))
+    (add-entry log (restore (file log))))
+  log)
 
 (defmethod read-log ((file string))
   (read-log (pathname file)))
@@ -135,11 +139,11 @@ and (defrestore-cl-store (newtype log) .."))
 (defmethod read-log ((file pathname))
   (if (probe-file file)
     (restore file)
-    (make-instance 'base-log :log-file file)))
+    (make-instance 'base-log :file file)))
 
 (defun with-log-fn (read-from fn &key (log (read-log read-from)))
   (prog1 (funcall fn log)
-    (store log read-from)))
+    (store log (file read-from))))
 
 (defmacro with-log ((&optional (log-var (gensym)) read-from) &body body)
   "Reads a log, allows you to do body, then writes it again.
