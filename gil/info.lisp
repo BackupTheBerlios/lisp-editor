@@ -49,11 +49,9 @@ Page ~a changed to page ~a."
 	    :page *cur-page* :directory *cur-directory*))))
 ;;End link stuff.
 
-(def-call (fun function) (funcall fun))
 (def-call (str string) str)
 (def-call (num number) num)
 (def-call (symbol symbol) symbol)
-(def-call anything (error "Not recognized ~a" anything))
 (def-call (null null) (declare (ignore null)))
 
 (defun gather (from)
@@ -129,9 +127,6 @@ Page ~a changed to page ~a."
   (setf (get-link-page link-name) (make-instance 'url-entry :url url)))
 
 ;;Listing notables.
-(defvar *notables* nil
-  "List of things stated notable.(With link names to them.")
-
 (defclass notable ()
   ((pos :initarg :pos :type (or string symbol))
    (objects :initarg :objects :type list)

@@ -13,7 +13,7 @@
   (:use :common-lisp :alexandria)
   (:export *path-root* from-path-root to-absolute 
 	   path-count-directory-depth
-	   file-extension)
+	   file-extension first-nonexistant-path)
   (:documentation "Some stuff to assist with paths and paths."))
 
 (in-package :path-stuff)
@@ -77,3 +77,19 @@
   "Gets file extension."
   (when-let (i (position #\. file :from-end t))
     (values (subseq file i) (subseq file 0 i))))
+
+(defun first-nonexistant-path
+    (&key (n 0) append-to time-based
+          (paths-fn (if time-based 
+		      (lambda () 
+			(format nil "~a~a" append-to (get-universal-time)))
+		      (lambda ()
+			(setq n (+ n 1))
+			(format nil "~a~a" append-to n))))
+          (try-first append-to))
+  "Return the first path that does not already exist.
+ (just set append-to to makie it search for taht name and then numbers 
+attached)"
+  (do ((path try-first (funcall paths-fn)))
+      ((if path (probe-file path) t)
+       (or path :failed))))

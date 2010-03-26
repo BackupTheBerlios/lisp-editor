@@ -132,8 +132,6 @@ see gil-execute if you want to output.
 TODO track checksums(keyword currently ignored), and relevant arguments.
  (If arguments change it will need to be redone regardless.)"
   (cond
-    ((functionp from)
-     from)
     ((listp from)
      (lambda ()
        (mapcar (lambda (el)
@@ -141,4 +139,4 @@ TODO track checksums(keyword currently ignored), and relevant arguments.
     ((stringp from)
      (execute-file from))
     (t
-     (error "~a not recognized" from))))
+     from)))

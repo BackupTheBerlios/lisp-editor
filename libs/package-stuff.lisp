@@ -11,7 +11,8 @@
 
 (defpackage :package-stuff
   (:use :common-lisp :alexandria)
-  (:export to-package to-package-name same-package symbol-package> listfind-package)
+  (:export to-package to-package-name same-package symbol-package> 
+	   listfind-package package-keyword)
   (:documentation "Some stuff to do with packages."))
 
 (in-package :package-stuff)
@@ -52,3 +53,7 @@
 				 symbol))
 		 package-list)
     (symbol-package symbol)))
+
+(defun package-keyword (sym)
+  (when-let (package-name (when sym (to-package-name sym)))
+    (intern package-name :keyword)))

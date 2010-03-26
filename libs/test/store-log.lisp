@@ -43,45 +43,33 @@
   (dotimes (k cnt)
     (write-file k (random 1000) (random 1000))))
 
-(defun check-correspondence ()
+(defun check-correspondence (&key (n 0))
   (setf- + *check-nr* 1)
-  (flet ((sortfn (a b)
-	   (string> (namestring(file a)) (namestring(file b)))))
-    (mapcar (lambda (writ entry)
-	      (with-mod-slots w- (file had-timestamp rnd) writ
-		(with-mod-slots e- (file had-timestamp rnd) entry
-		  (assert (string= (namestring w-file) (namestring e-file))
-			  nil "Files ~a ~a" w-file e-file)
-;		  (assert (= e-had-timestamp (file-write-date e-file))
-;			  nil "Times")
-		  (assert (eql (type-of writ) (type-of entry)) nil
-			  "Incorrect typing. ~a!=~a, ~s"
-			  (type-of writ) (type-of entry) w-file)
-		  (when (eql (type-of writ) 'rnd-entry)
-		    (assert (= w-rnd e-rnd) nil
-			    "Not same data; ~a ~a" w-rnd e-rnd)))))
-	    (setf- sort *written* #'sortfn)
-	    (setf- sort (slot-value *test-log* 'entries) #'sortfn)))
-  (assert (= (length *written*) (length (entries *test-log*)))
-	  nil "Element count. denoted ~a(~a), has ~a~2%~a~2%~a"
-	  (length *written*) *write-nr* (length (entries *test-log*))
-	  *written* (entries *test-log*)))
+  (dolist (writ *written*)
+    (with-mod-slots w- (file had-timestamp rnd) writ
+      (let ((entry (get-entry *test-log* w-file)))
+	(assert entry nil "Entry not found for ~a" w-file)
+	(with-mod-slots e- (file had-timestamp rnd) entry
+	  (assert (eql (type-of writ) (type-of entry)) nil
+		  "Incorrect typing. ~a!=~a, ~s"
+		  (type-of writ) (type-of entry) w-file)
+	  (when (eql (type-of writ) 'rnd-entry)
+	    (assert (= w-rnd e-rnd) nil
+		    "Not same data; ~a ~a" w-rnd e-rnd))))
+      (setf- + n 1)))
+  (assert (= (length *written*) (entry-cnt *test-log*) n)
+    nil "Element count. denoted ~a(~a), has ~a, found ~a"
+    (length *written*) *write-nr* (entry-cnt *test-log*) n))
 
 (defparameter *testing-directory* 
   #p"/home/jasper/proj/lisp-editor/libs/test/log-plaything/")
 
-(defmethod add-entry :around ((log rnd-log) (add pathname)
-			      &key (time (get-universal-time)))
-  (let*((entry (call-next-method log add :time time))
-	(read  (with-open-file (stream (file entry))
+(add-entry-hook ((log rnd-log) entry)
+  (let ((read (with-open-file (stream (file entry))
 		 (read stream))))
     (if (numberp read)
       (change-class entry 'rnd-entry :rnd read)
       entry)))
-
-(defmethod add-entry ((log rnd-log) (add string)
-		      &key (time (get-universal-time)))
-  (add-entry log (pathname add) :time time))
 
 (defun test (steps files-per-step)
   "Steps a bunch of steps, doing random stuff."

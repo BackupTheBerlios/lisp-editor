@@ -41,8 +41,7 @@
 
 ;Note it has to be base-track, otherwise it is super of list, and it will 
 ; do :full with the list!
-(def-document :full-with-hr*
-    ((object expr-scan::base-track) &key)
+(def-document :full-with-hr* ((object expr-scan::base-track) &key)
   (series :hr (document :full object)))
 
 (defun mk-website ()
@@ -61,11 +60,13 @@
 	   (:level-filter :to 1) :header :link)))
 	(autodoc
 	 (glist-list :series
-	   (mapcar
+	   (mapcan
 	    (lambda (pkg)
-	      (document :pkg pkg
-			:doc-manners '(:full-with-hr*)))
-	    '(:generic :denest :alexandria
+	      (when (expr-scan:access-result 'defpackage pkg)
+		(list
+		 (document :pkg pkg
+			   :doc-manners '(:full-with-hr*)))))
+	    '(:generic :denest :alexandria.0.dev
 	      :package-stuff :expression-hook :expression-scan
 	      
 	      :gil :gil-vars :gil-share :gil-style
@@ -97,57 +98,9 @@
 
 (time (mk-website)) ;TODO it is warning me a bit.
 
-;;Doesn't work atm.. Because expression scan misses environment treatment, 
-;; or just kinks?
-(let ((*default-pathname-defaults*
-       #p"/home/jasper/proj/lisp-editor/doc/autodoc/")
-      (ref
-       (mapcar
-	(lambda (path)
-	  (when (stringp path)
-	    (if (cl-fad:directory-pathname-p path)
-	      (cons path 
-		    (mapcan
-		     (lambda (file &key (file-name (file-namestring file))
-			      (len (length file-name))
-			      (ext (if (> len 4) 
-				    (subseq file-name (- len 4)) "")))
-		       (when (or (string= ext ".asd")
-				 (string= ext ".ASD"))
-			 (list file-name)))
-		     (cl-fad:list-directory path)))
-	      path)))
-	asdf:*central-registry*)))
-  (dolist (r ref)
-    (typecase r
-      (string
-       (let ((*default-pathname-defaults*
-	      (pathname (directory-namestring r))))
-	 (expr-scan:scan-file (file-namestring r))))
-      (null)
-      (list
-       (let ((*default-pathname-defaults* (pathname (car r))))
-	 (mapcar #'expr-scan:scan-file (cdr r)))))))
-
-
 ;;documenting cl-fad, however does work.
 (let ((*default-pathname-defaults*
        #p"/home/jasper/oproj/lispbuilder-read-only/lispbuilder-sdl/"))
   (expr-scan:scan-file "lispbuilder-sdl.asd"))
 
-(let ((*default-pathname-defaults*
-       #p"/home/jasper/proj/lisp-editor/doc/")
-      (*lang* :html)
-      (*attempt-readable* nil)
-      (gil-html::*default-style-file* "default.css"))
-  (with-open-file (*standard-output* "principles.html"
-	 	     :direction :output :if-does-not-exist :create
-		     :if-exists :supersede)
-    (call (gil-html::style))
-    (call (execute "principles.gil"))))
-
-(let ((*lang* :latex))
-  (call (section 4 "a" (link "miauw" "b") "kaka 24154 512" "35235252" (b "234"))))
-
-(load "gil/output/latex.lisp")
 	       

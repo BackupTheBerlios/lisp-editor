@@ -28,10 +28,6 @@ TODO:
 		 (string-downcase
 		  (subseq name (+ (position #\_ name :from-end t) 1))))))
 
-(defun package-keyword (sym)
-  (when-let (package-name (when sym (to-package-name sym)))
-    (intern package-name :keyword)))
-
 (defun boring-link (sym in-package)
   "Whether a link is uninteresting. (As-in water under the bridge,)"
   (case in-package

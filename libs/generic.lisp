@@ -3,11 +3,16 @@
 
 (cl:in-package :cl-user)
 
+;; http://www.lispforum.com/viewtopic.php?f=2&t=663
+;;not here and i find interesting let^, defconst 
+
 (defpackage :generic
   (:nicknames :gen)
   (:use :common-lisp :alexandria)
   (:export sqr delist intern*
-
+	   
+	   let^ let*^
+	   
 	   constant
 	   
 	   for-more setf-
@@ -34,6 +39,23 @@
       x))
 
 ;(defun subseq* (..
+
+(flet ((let-plist (let-type bindings body)
+	 (if (evenp (length bindings))
+	   `(,let-type ,(loop :for (var val) :on bindings
+			   :by (function cddr)
+			   :collect (list var val)) ,@body)
+	   (cerror "Odd number of let^ bindings."))))
+  (defmacro let^ (bindings &body body)
+    (let-plist 'let bindings body))
+  (defmacro let*^ (bindings &body body)
+    (let-plist 'let* bindings body)))
+      
+(defmacro let*^ (bindings &body body)
+  (if (evenp (length bindings))
+   `(let*,(loop :for (var val) :on bindings :by (function cddr)
+           :collect (list var val)) ,@body)
+      (cerror "Odd number of let^ bindings.")))
 
 (defmacro for-more (macroname &rest args)
   "Applies a series of different arguments to same function."
@@ -103,3 +125,31 @@ Mod adds some name previously so you can work with multiple of the same.\
   (lambda (&rest rest)
     (declare (ignore rest))
     value))
+
+(defun print-obj (list &key (leading #\Newline))
+  "For sequences, a line for each element."
+  (princ leading)
+  (typecase list
+    (null (princ "()"))
+    (sequence
+     (princ "(") (prin1 (type-of list))
+     (map nil #'print list)
+     (princ ")"))
+    (t    (prin1 list)))
+  list)
+
+(defun written-time (ut) ;TODO move somewhere else.
+  "Time, but written out, hopefullying suiting rss."
+  (multiple-value-bind
+	(second minute hour date month year day daylight-p zone)
+      (decode-universal-time ut 0)
+    (declare (ignore daylight-p zone))
+    (flet ((two-digit (n)
+	     (format nil (cond ((< n 10) "0~a") ((< n 100) "~a")) n)))
+      (format nil "~a, ~a ~a ~a, ~a:~a:~a UT"
+	 (aref (vector "Mon" "Tue" "Wed" "Thu" "Fri" "Sat" "Sun") day)
+	 date
+	 (aref (vector "Jan" "Feb" "Mar" "Apr" "May" "Jun"
+		       "Jul" "Aug" "Sep" "Oct" "Nov" "Dec") month)
+	 year
+	 (two-digit hour) (two-digit minute) (two-digit second)))))

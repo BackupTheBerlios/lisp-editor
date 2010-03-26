@@ -15,7 +15,8 @@
    *cur-page* *cur-pos* *cur-char-depth* 
    *cur-directory*
    *links* *dead-links* *double-links*
-   *contents* *enclosure* *comments-thread* *most-significant-section*)
+   *contents* *enclosure* *comments-thread* *most-significant-section*
+   *notables*)
   (:documentation "Various variables communicating from :info and/or\
  such. Not at the user end."))
 
@@ -36,7 +37,7 @@
   "Keeps track of links.")
 (defvar *dead-links* nil
   "Links that failed to have an end to it.")
-(defvar *double-links* (make-hash-table)
+(defvar *double-links* nil
   "Links that have more than one endpoint.")
 
 (defvar *contents* nil
@@ -50,3 +51,9 @@
   "Most important section read so far. This way you can figure out a name\
  for a bit of code by seeing what the most significant section of a part\
  is.")
+
+(defvar *notables* nil
+  "List of things stated notable.(With link names to them.")
+
+(declaim (type hash-table *links*)
+	 (type list *dead-links* *double-links* *contents* *notables*))

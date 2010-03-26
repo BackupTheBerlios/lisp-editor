@@ -49,15 +49,24 @@ so they're applicable to multiple implementations."))
 			 (,objects list))
        ,@body)))
 
-(defun glist-list (way things)
+(defclass glist-obj ()
+  ((way :initarg :way)
+   (objects :initarg :objects :type list)))
+
+(defvar *via* :object)
+(declaim (type (or (eql :object) (eql :function)) *via*))
+
+(defun glist-list (way objects)
   "Lists of various forms.
 way:
  :p    Paragraph-like separations
  :list Point-by-point list, class point-list allows for more specification.
  If you made a custom one, and none applies, it reverts to :p"
-  (lambda ()
-    (i-glist *lang* way things)
-    (values)))
+  (case *via*
+    (:object (make-instance 'glist-obj :way way :objects objects))
+    (:way    (lambda ()
+	       (i-glist *lang* way objects)
+	       (values)))))
 ;Note: not returning anything until circumscribed what that should be.
 
 (defun glist (way &rest things)
@@ -82,12 +91,37 @@ way:
 (defgeneric i-call (lang thing)
   (:documentation "Write the stuff."))
 
+(defmacro basic-lang (lang)
+  "Basic methods for all languages.."
+  `(progn 
+     (defmethod i-call ((lang ,lang) (null null))
+       (declare (ignore lang null)))
+
+     (defmethod i-call ((lang ,lang) (fun function))
+       (declare (ignore lang))
+       (funcall fun))
+
+     (defmethod i-call ((lang ,lang) (glist-obj glist-obj))
+       (with-slots (way objects) glist-obj
+	 (i-glist lang way objects)))))
+
+(basic-lang t)
+
 (defmacro def-call (object &body body)
   (with-gensyms (lang obj)
-    `(defmethod i-call ((,lang (eql ,(cur-def-lang)))
-			,(if (keywordp object)
-			   `(,obj (eql ,object)) object))
-       ,@body)))
+    (cond
+      ((keywordp object)
+       `(defmethod i-call
+	    ((,lang (eql ,(cur-def-lang))) (,obj (eql ,object)))
+	  ,@body))
+      ((or (symbolp object) (eql (cadr object) t))
+       `(progn
+	  (defmethod i-call ((,lang (eql ,(cur-def-lang))) ,object)
+	    ,@body)
+	  (basic-lang ,(cur-def-lang))))
+      (t
+       `(defmethod i-call ((,lang (eql ,(cur-def-lang))) ,object)
+	  ,@body)))))
 
 (defun call (thing)
   "Does runs i-call with *lang*"
@@ -101,19 +135,6 @@ way:
   (error "The language is not set."))
 
 ;;NOTE/TODO it turns out i have to redo these? Why?
-(defmethod i-call (lang (string string))
-  (declare (ignore lang))
-  (write-string string))
-
-(defmethod i-call (lang (num number))
-  (declare (ignore lang))
-  (format t "~a" num))
-
-(defmethod i-call (lang (null null))
-  (declare (ignore lang null)))
-
-(defmethod i-call (lang (fun function))
-  (declare (ignore lang))
-  (funcall fun))
 
 (declaim (inline call glist glist-list))
+

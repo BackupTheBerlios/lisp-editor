@@ -30,7 +30,7 @@
 
 (defvar *link-page-style* nil "Way the link is\
  followed with regard to page, may try to open new tab or replace old,
- etcetera..")
+ etcetera.. TODO not implemented")
 
 (defvar *section-page-level* 1
   "At what level a page becomes modified.")
@@ -60,3 +60,11 @@
  results.")
 (defvar *attempt-shorten* t
   "Whether to try make it as short as possible.")
+
+(declaim (type (or string null) *author* *following-directory*)
+	 (type (function (t) t) *handle-page*)
+	 (type symbol *link-page-style* 
+	       *attempt-readable* *attempt-shorten*)
+	 (type fixnum *section-page-level* *section-level-modifier*
+	       *long-number* *indent-depth* *indent-step* *line-len*)
+	 (type single-float *acceptible-line-split-ratio*))

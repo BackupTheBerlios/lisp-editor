@@ -20,8 +20,6 @@ TODO not tested very deeply."))
 
 (in-package :gil-txt)
 
-(def-call anything (error "Not recognized: ~s" anything))
-
 (def-call (str string)
   (add-txt (substitute #\Space #\Newline 
 	    (substitute #\Space #\Tab 
@@ -31,9 +29,6 @@ TODO not tested very deeply."))
   (add-txt (format nil "~a" num)))
 
 (def-call (null null) (declare (ignore null)))
-
-(def-call (fun function)
-  (funcall fun))
 
 (def-call :newline (call "
 "))

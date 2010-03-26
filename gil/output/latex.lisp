@@ -52,9 +52,6 @@ TODO equations would be neat to have, and crazy not to have.
   (when *attempt-readable* (dump-txt))
   (call-format "\\end{~a}~%" with))
 
-(def-call (fun function)
-  (funcall fun))
-
 (def-call (sym symbol)
   (call-format "\\~a" sym))
 

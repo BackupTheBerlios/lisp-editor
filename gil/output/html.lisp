@@ -76,7 +76,7 @@ tracked by gil-info.")
     `(def-glist ,way ,objects
        (surround ,with (call-list ,objects)))))
 
-(def-call (fun function) (may-indent) (funcall fun))
+;(def-call (fun function) (may-indent) (funcall fun))
 (def-call (null null) (declare (ignore null)))
 
 (def-call (str string)
@@ -90,7 +90,8 @@ tracked by gil-info.")
       (write-string string))))
 
 (def-call (num number) (may-indent) (call (format nil "~a" num)))
-(def-call anything (error "Not recognized: ~s" anything))
+
+(def-call (null null))
 
 (def-call (symbol symbol)
   (case symbol

@@ -73,6 +73,21 @@ Keywords :all(default), :need-execute (changed after previous execution),
   (setf (log-data :last-update-time) time)
   (with-entry-access entry
     (setf (access :last-update-time) time)
+(defun written-time (ut) ;TODO move somewhere else.
+  "Time, but written out, hopefullying suiting rss."
+  (multiple-value-bind
+	(second minute hour date month year day daylight-p zone)
+      (decode-universal-time ut 0)
+    (declare (ignore daylight-p zone))
+    (flet ((two-digit (n)
+	     (format nil (cond ((< n 10) "0~a") ((< n 100) "~a")) n)))
+      (format nil "~a, ~a ~a ~a, ~a:~a:~a UT"
+	 (aref (vector "Mon" "Tue" "Wed" "Thu" "Fri" "Sat" "Sun") day)
+	 date
+	 (aref (vector "Jan" "Feb" "Mar" "Apr" "May" "Jun"
+		       "Jul" "Aug" "Sep" "Oct" "Nov" "Dec") month)
+	 year
+	 (two-digit hour) (two-digit minute) (two-digit second)))))
     (unless (access :first-update-time)
       (setf (access :first-update-time) time))
     (let ((gil:*lang* :info) ;Gather info.
@@ -102,21 +117,6 @@ Keywords :all(default), :need-execute (changed after previous execution),
 	      (access :comments-thread)
 	      (gil-html:link-url gil-info:*comments-thread*))))))
 
-(defun written-time (ut) ;TODO move somewhere else.
-  "Time, but written out, hopefullying suiting rss."
-  (multiple-value-bind
-	(second minute hour date month year day daylight-p zone)
-      (decode-universal-time ut 0)
-    (declare (ignore daylight-p zone))
-    (flet ((two-digit (n)
-	     (format nil (cond ((< n 10) "0~a") ((< n 100) "~a")) n)))
-      (format nil "~a, ~a ~a ~a, ~a:~a:~a UT"
-	 (aref (vector "Mon" "Tue" "Wed" "Thu" "Fri" "Sat" "Sun") day)
-	 date
-	 (aref (vector "Jan" "Feb" "Mar" "Apr" "May" "Jun"
-		       "Jul" "Aug" "Sep" "Oct" "Nov" "Dec") month)
-	 year
-	 (two-digit hour) (two-digit minute) (two-digit second)))))
 
 (defun write-str (*lang* &rest objects)
   (with-output-to-string (*standard-output*)
