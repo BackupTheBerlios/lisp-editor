@@ -57,7 +57,7 @@
 (defmethod log-execute ((entry gil-entry) (when (eql t)))
   (with-slots (last-execute had-timestamp) entry
     (setf last-execute (get-universal-time))
-    (let^ (*lang* :info ;Gather info
+    (^let (*lang* :info ;Gather info
 	   *most-significant-section* nil ;For title, link, description
 	   *notables* nil ;for categories/notables.
 	   *author* "")
@@ -90,7 +90,7 @@
 (defmethod write-rss ((log log-info) &key override-notables)
   (with-slots (title link description notables author) log
     (xml-surround "title"
-      (let^ (*lang* :html) (call title)))
+      (^let (*lang* :html) (call title)))
     (xml-surround "link"
       (gil-html:link-url link))
     (xml-surround "category"
@@ -98,7 +98,7 @@
 	(write-string n) (write-string " ")))
     (when author (xml-surround "author" (write-string author)))
     (xml-surround "description"
-      (let^ (*lang* :html) (call description)))))  
+      (^let (*lang* :html) (call description)))))  
 
 (defmethod write-css :around ((entry gil-entry) &key)
   (xml-surround "item"
@@ -125,7 +125,7 @@ Use these to in-effect make a separate categories for the readers.")
      (when (and (string/= backup "")
 		(probe-file file)) ;Make backup if requested.
        (cl-fad:copy-file file (first-nonexistant-path :append-to backup))))
-   (let^ (list nil)
+   (^let (list nil)
      ;Gather sorted list of all the entries that qualify.
      (map-entries log (entry)
        (when (subsetp notables (log-notables entry) :test #'string=)

@@ -11,15 +11,19 @@
   (:use :common-lisp :alexandria)
   (:export sqr delist intern*
 	   
-	   let^ let*^
+	   ^ ^let ^let*
 	   
 	   constant
 	   
 	   for-more setf-
-	   case-let when-do
+	   case-let typecase-let when-do
 
 	   mk with-mod-slots
-	   with-access with-mod-access)
+	   with-access with-mod-access
+	   
+	   clout-assoc clout-assoc-recursive
+	   
+	   written-time)
   (:documentation "Assortment of little useful macros/functions."))
 
 (in-package #:generic)
@@ -40,22 +44,14 @@
 
 ;(defun subseq* (..
 
-(flet ((let-plist (let-type bindings body)
-	 (if (evenp (length bindings))
-	   `(,let-type ,(loop :for (var val) :on bindings
-			   :by (function cddr)
-			   :collect (list var val)) ,@body)
-	   (cerror "Odd number of let^ bindings."))))
-  (defmacro let^ (bindings &body body)
-    (let-plist 'let bindings body))
-  (defmacro let*^ (bindings &body body)
-    (let-plist 'let* bindings body)))
-      
-(defmacro let*^ (bindings &body body)
-  (if (evenp (length bindings))
-   `(let*,(loop :for (var val) :on bindings :by (function cddr)
-           :collect (list var val)) ,@body)
-      (cerror "Odd number of let^ bindings.")))
+(defmacro ^ (name bindings &body body)
+  `(,name ,(loop :for (var val) :on bindings :by (function cddr)
+              :collect (list var val)) ,@body))
+
+(defmacro ^let ((&rest bindings) &body body)
+  `(^ let ,bindings ,@body))
+(defmacro ^let* ((&rest bindings) &body body)
+  `(^ let* ,bindings ,@body))
 
 (defmacro for-more (macroname &rest args)
   "Applies a series of different arguments to same function."
@@ -73,6 +69,12 @@
   "Case, but makes a variable for you."
   `(let ((,var ,is))
      (case ,var ,@cases)))
+
+(defmacro typecase-let ((var is) &rest cases)
+  "Typecase, but makes a variable for you."
+  `(let ((,var ,is))
+     (typecase ,var
+       ,@cases)))
 
 (defmacro when-do (cond &rest do)
   "return-from the condition, if the condition is true."
@@ -153,3 +155,32 @@ Mod adds some name previously so you can work with multiple of the same.\
 		       "Jul" "Aug" "Sep" "Oct" "Nov" "Dec") month)
 	 year
 	 (two-digit hour) (two-digit minute) (two-digit second)))))
+
+(defun clout-assoc
+    (list &key (test #'eql)
+               (result nil))
+  "Makes it an association list by putting multiple of the same type\
+together. WARNING Destructive on list!!"
+  (do () ((null list) (values))
+    (let*((searched (caar list))
+	  (cur-result (if (null (cdar list))
+			(list searched)
+			(list searched (cdar list)))))
+      (setf list (remove-if (lambda (el)
+			      (when (funcall test (car el) searched)
+				(push (cdr el) (cdr cur-result))
+				t))
+			    (cdr list)))
+      (push cur-result result)))
+  result)
+
+(defun clout-assoc-recursive (list &key (test #'eql) (limit 100))
+  (if (> limit 0)
+    (mapcar (lambda (el)
+	      (if (null (cdr el))
+		el
+		(cons (car el)
+		      (clout-assoc-recursive (cdr el) 
+			:test test :limit (- limit 1)))))
+	    (clout-assoc list :test test))
+    list))

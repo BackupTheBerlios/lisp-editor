@@ -10,57 +10,97 @@
 (cl:in-package :cl-user)
 
 (defpackage :asd-scanned
-  (:use :common-lisp :alexandria :generic :expression-scan
+  (:use :common-lisp :alexandria :generic :denest :expression-scan
 	:package-stuff :path-stuff)
-  (:export *system-name-hook* asd-scanned)
+  (:export *package-name-hook* asd-scanned)
   (:documentation 
    "Automatically make .asd files from scan results and given packages\
- to do so on."))
+ to do so on.
+
+WARNING TODO currently only makes :depends-on if it is :used ! "))
 
 (in-package :asd-scanned)
 
-(defvar *system-name-hook* #'identity
-  "Function called on package name to get system name.")
+(defvar *package-name-hook*
+  (lambda (name) ;Go round like that do detect nicknames.
+    (let*((name (package-name (find-package (package-keyword name))))
+	  (ret  (intern (if-let (i (position #\. name))
+				(subseq name 0 i) name) :keyword)))
+      (when (asdf:find-system ret nil) ret)))
+  "Function called on package name to get system name.
+Default assumes stuff after '.' is to be ignored.")
+
+(defun break-file-to-list (path)
+  "Break a file path to a list of directories."
+  (collecting ()
+    (do ((k 0 (+ k 1))
+	 (j -1 j))
+	((>= k (length path)) (collecting (subseq path (+ j 1))))
+      (when (char= (aref path k) #\/)
+	(collecting (subseq path (+ j 1) k))
+	(setq j k)))))
+
+(defun write-path
+    (pathlist stream &key (depth 2)
+     (prep (make-string depth :initial-element #\Space)))
+  "Write asd modules to represent directories and files."
+  (typecase (cdr pathlist)
+    (null (assert (> (length (car pathlist)) 5) nil
+		  "~s doesn't have (more than) the .lisp extension" 
+		  (car pathlist))
+	  (when (> (length (car pathlist)) 5)
+	    (format stream "~%~a(:file ~s)" 
+		    prep (subseq (car pathlist)
+				 0 (- (length (car pathlist)) 5)))))
+    (list (format stream "~%~a(:module ~s :components ("
+		  prep (car pathlist))
+	  (dolist (el (cdr pathlist))
+	    (write-path el stream :depth (+ depth 2)))
+	  (format stream "))"))))
 
 (defun asd-scanned-1 (package stream to-path)
-  "Scan a single package."
-  (let*((by-name (intern* (to-package-name package) :keyword))
-	(track (access-result 'defpackage by-name)))
-    (assert track nil "Could not find scan result of ~a" by-name)
-    (format stream "~2%  (defsystem :~a"
-	    (string-downcase(funcall *system-name-hook* by-name)))
-    (let ((assoc (cddr (slot-value track 'expr-scan::form)))
-	  (files (reverse (copy-list
-			   (slot-value track 'expr-scan::paths)))))
-      (flet ((obtain (name)
-	       (cdr (assoc name assoc))))
-	(when-let (descr (car (obtain :documentation)))
-	  (format stream "~%    :description ~s" descr))
-	(format stream "~%    :serial t")
-	(when-let (uses (obtain :use))
-	  (format stream " ~%    :depends-on (~{:~a ~})"
-		  (mapcar (lambda (use)
-			    (string-downcase
-			     (funcall *system-name-hook* use)))
-			  uses)))
+  "Scan a single package.
+TODO will probably want to autoput to a list first and then allow that to\
+ be neatly printed."
+  (denest
+   (let*((by-name (package-keyword package))
+	 (track (access-result 'defpackage by-name)))
+     (unless track 
+       (warn "Could not find scan result of ~s,~s" by-name package)
+       (return-from asd-scanned-1))
+     (format stream "~2%(defsystem :~a"
+	     (string-downcase(funcall *package-name-hook* by-name))))
+   (with-mod-slots "" (expr-scan::form expr-scan::paths
+		       expr-scan::uses expr-scan::also-uses) track)
+   (flet ((obtain (name)
+	    (cdr (assoc name (cddr form)))))
+     (when-let (descr (car (obtain :documentation)))
+       (format stream "~%  :description ~s" descr))
+     (format stream "~%  :serial t")
+     (unless (and (null uses) (null also-uses))
+       (format stream "~%  :depends-on (~{:~a~^ ~})"
+	       (remove-if
+		(lambda (pkg)
+		  (case-let (p (intern (string-upcase pkg) :keyword))
+		    ((:cl :common-lisp :asdf :nil) t)
+		    (t (eql p by-name))))
+		(mapcar (lambda (use)
+			  (string-downcase
+			   (funcall *package-name-hook* use)))
+			(append uses also-uses)))))
        ;And now to list the files: 
  ;(Not too good, dumbly makes a module for each file in directory.)
-	(format stream "~%    :components (")
-	(dolist (file files)
-	  (format stream "~%       ")
-	  (let ((path (from-path-root file to-path)))
-	    (do ((k 0 (+ k 1))
-		 (j -1 j))
-		((>= k (length path)) nil)
-	      (when (char= (aref path k) #\/)
-		(format stream "(:module ~s " (subseq path (+ j 1) k))
-		(setq j k)))
-	    (format stream "(:file ~s)"
-		    (subseq file (+ (position #\/ file :from-end t) 1)))
-	    (dotimes (k (path-count-directory-depth path))
-	      (format stream ")"))))
-	(format stream "~%    ))")))))
-			*default-pathname-defaults*))
+     (format stream "~%  :components ("))
+   (let ((file-list
+	  (clout-assoc-recursive
+	   (mapcar (lambda (file)
+		     (break-file-to-list
+		      (from-path-root (namestring file) to-path)))
+		   paths)
+	   :test #'string=)))
+     (dolist (fileset file-list)
+       (write-path fileset stream :depth 2))
+     (format stream "))"))))
 
 (defun asd-scanned
     (packages &key (to-path *default-pathname-defaults*)
@@ -70,7 +110,9 @@
     (with-open-file (stream to-file :direction :output
 		     :if-exists if-exists :if-does-not-exist :create)
       (when first
-	(format stream "~%(in-package :cl-user)
-\ (defpackage :auto-asd-scanned (:use :common-lisp :asdf))
-\ (in-package :auto-asd-scanned)"))
-      (mapcar (rcurry #'asd-scanned-1 stream to-path) packages))))
+	(format stream ";;Autogenerated asd file by asd-scanned.
+~%(cl:in-package :cl-user)
+~%(use-package '(:asdf))"))
+      (mapcar (rcurry #'asd-scanned-1 stream to-path) packages)
+      (format stream "~2%"))))
+

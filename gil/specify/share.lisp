@@ -24,6 +24,7 @@
 	   url-link link-pos
 	   
 	   lister point-list alt-point-list numbered-list
+	   enumerate
 	   
 	   header section
 	   link follow-link
@@ -57,6 +58,12 @@
   (make-instance 'lister :style :alt-list))
 (def-glist-caller description-list ()
   "List of described stuff" :descriptions)
+
+(defun enumerate (&rest objects)
+  "Comma-separated objects"
+  (glist-list :series
+    (cons (car objects)
+	  (mapcan (lambda (obj) (list ", " obj)) (cdr objects)))))
 
 (defmacro def-glist-ignore (way)
   "Default behavior to ignore something, but not the objects."

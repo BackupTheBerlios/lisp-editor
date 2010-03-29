@@ -55,5 +55,8 @@
     (symbol-package symbol)))
 
 (defun package-keyword (sym)
-  (when-let (package-name (when sym (to-package-name sym)))
-    (intern package-name :keyword)))
+  (intern (if (packagep sym)
+	    (package-name sym) 
+	    (format nil "~a" sym))
+	  :keyword))
+

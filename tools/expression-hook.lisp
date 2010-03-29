@@ -21,7 +21,7 @@
  and must call further expand-hook.
 Used for gathering information on code autodoc via expression-scan."))
 
-(in-package #:expression-hook)
+(in-package :expression-hook)
 
 ;;TODO Got a bug about macrolet, seen first through defmethod
 
@@ -76,7 +76,8 @@ Used for gathering information on code autodoc via expression-scan."))
 	   `((setf (gethash ',name *base-macros*) #',base-macro)))))))
 
 (defparameter *ignore-packages* ;TODO SBCL specific.
-  (list :sb-impl :sb-int :sb-c :sb-pcl :sb-kernel :sb-loop)
+  (list :sb-impl :sb-int :sb-c :sb-pcl :sb-kernel :sb-loop :sb-vm
+	:sb-di)
   "Packages, when encountered, it stops scanning.")
 
 (defun expand (form)

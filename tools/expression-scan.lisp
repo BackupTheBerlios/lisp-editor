@@ -9,14 +9,15 @@
 
 (cl:in-package :cl-user)
 
-;TODO how is it printing?!?!?
 (defpackage :expression-scan
-  #+lispworks (:import-from #:lispworks #:compiler-let)
-  (:use :common-lisp :alexandria :generic :package-stuff :expression-hook)
+  (:use :common-lisp :alexandria :generic :denest
+	:package-stuff :path-stuff
+	:expression-hook)
   (:nicknames :expr-scan)
-  (:export add-scanner-fun def-scanner ;TODO are all these needed?
+  (:export add-scanner-fun def-scanner
 	   fun-scanner
 	   *additional-scan* access-result *scan-result*
+	   *package-list* list-packages-below-path
 	   
 	   scan-expression-hook scan-macro-hook
 	   
@@ -39,6 +40,7 @@ Any s-expression can be tracked. (So macros and functions can be tracked.)
 
 ;;TODO reader-macro to try fish out some comments?
 
+;;Current file.
 (defvar *cur-file* nil
   "Current file being scanned.")
 (defvar *cur-path* nil
@@ -46,20 +48,25 @@ Any s-expression can be tracked. (So macros and functions can be tracked.)
 
 (defun cur-file ()
   "Attempts to get current file being scanned."
-  (values (or *cur-path* *load-pathname* *compile-file-pathname*)
-	  (or *cur-file* *load-truename* *compile-file-truename*)))
+  (values (or *cur-file* *load-truename* *compile-file-truename*)
+	  (or *cur-path* *load-pathname* *compile-file-pathname*)))
 
-(defvar *fun-scan* (make-hash-table)
-  "Scanners for the different macros/functions under observation.")
-(defparameter *additional-scan* (list)
-  "List of functions for scanning besides every expression.\
- (Rather then fun-scan, elements of which only scan specific macros.")
+;;Some vars
+(defvar *cur-package* nil)
 
 (defvar *reading-myself* nil) ;;TODO unclear.
 
 (defgeneric name (obj) (:documentation "Gets name of object."))
 
 (defmethod name ((null null)))
+
+;;Scanners
+(defvar *fun-scan* (make-hash-table)
+  "Scanners for the different macros/functions under observation.")
+
+(defparameter *additional-scan* (list)
+  "List of functions for scanning besides every expression.\
+ (Rather then fun-scan, elements of which only scan specific macros.")
 
 (defun add-scanner-fun (for-name scan-function)
   "Adds a scanner for a macro/function."
@@ -76,46 +83,26 @@ Note that the variable expr contains the whole expression."
      (add-scanner-fun ',for-name #'scanning-fun)))
 	      
 (defvar *scan-result* (make-hash-table :test 'equalp)
-  "Lists result by name.")
+  "Lists result by name. If you clear it.")
 
+;;Accessing result.
 (defun access-result (fun-name name)
   "Accesses result of scan of macro/function.
 Providing a list of fun-names will search them in sequence."
-  (cond
-    ((null fun-name) nil)
-    ((listp fun-name)
-      (or (access-result (car fun-name) name)
-	      (access-result (cdr fun-name) name)))
+  (typecase fun-name
+    (null nil)
+    ((eql 'defpackage)
+     (gethash (vector fun-name (package-keyword name)) *scan-result*))
+    (list
+     (dolist (f-name fun-name)
+       (when-let ((result (access-result f-name name)))
+	 (return result))))
     (t
      (gethash (vector fun-name name) *scan-result*))))
 
 (defun (setf access-result) (to fun-name name)
   "See non-setf version."
   (setf (gethash (vector fun-name name) *scan-result*) to))
-
-(defvar *ignore-packages* (list :sb-impl :sb-int :sb-c :sb-pcl :sb-kernel))
-
-(defvar *couldnt-find-package* nil "List of packages not found.")
-
-(def-scanner in-package (name)
-  (unless
-      (cond ((find-package name)
-	     (setq *package* (find-package name)))
-	    ((asdf:find-system name nil)
-	     ;(asdf:oos 'asdf:load-op name) ;Try to get it.
-	     (when (find-package name)
-	       (setq *package* (find-package name)))))
-    (warn "Couldn't find package for ~a. It might not have been\
- loaded.
-Discontinued scan."
-	  name)
-    (pushnew name *couldnt-find-package*)
-    (setq expr-hook::*discontinue* t))
-  (when-let (tracker (access-result 'defpackage (intern* name :keyword)))
-    (multiple-value-bind (path file) (cur-file)
-      (pushnew (format nil "~a~a" path file) (slot-value tracker 'paths)
-	       :test 'equalp)))
-  expr)
 
 ;;The scanner hook. ;TODO scan asdf stuff.
 (defun scan-expression-hook (expr)
@@ -135,24 +122,46 @@ Discontinued scan."
     (funcall fn form))
   (funcall expander form env))
 
+(defvar *load-first* nil)
+(defvar *judge* (constant t))
+
 ;;Scanning stuff. ;;TODO should some of it be other package?
-(defun scan-file (stream ;This aught to be default, right?
+(defun scan-file (from ;This aught to be default, right?
 		  &key (*package* (find-package :cl-user))
-		       (expression-hook #'scan-expression-hook))
-  "Scans a file as source code in order to document it."
-  (if (or (stringp stream) (pathnamep stream))
-    (let ((*cur-file* stream)
-	  (*cur-path* *default-pathname-defaults*))
-      (with-open-file (stream stream)
-	(scan-file stream
-		   :*package* *package* :expression-hook expression-hook)))
-    (let ((expr-hook::*discontinue* nil)
-	  (*expression-hook* expression-hook)
-	  (*reading-myself* t))
-      (do ((read nil (read stream nil 'end-of-file)))
-	  ((or (eql read 'end-of-file)
-	       expr-hook::*discontinue*) nil)
-	(expand read)))))
+		       (*expression-hook* #'scan-expression-hook)
+		       (*load-first* *load-first*)
+		       (*judge* *judge*))
+  "Scans a file as source code in order to document it.
+'From' can be a string, pathname, list or stream. If it is a directory, 
+ it will read all the '.lisp' files in it."
+  (typecase from
+    ((or string pathname)
+     (if (cl-fad:directory-pathname-p from)
+       (scan-file (remove-if-not
+		   (lambda (file)
+		     (unless (funcall *judge* file)
+		       (or (cl-fad:directory-pathname-p file)
+			   (case (aref (file-namestring file) 0)
+			     ((#\. #\#) nil)
+			     (t
+			      (string= (path-stuff:file-extension file)
+				       ".lisp"))))))
+		   (cl-fad:list-directory from)))
+       (let ((*cur-file* from)
+	     (*cur-path* *default-pathname-defaults*))
+	 (when *load-first*
+	   (load from))
+	 (with-open-file (stream from)
+	   (scan-file stream)))))
+    (list
+     (mapcar #'scan-file from))
+    (stream
+     (let ((expr-hook::*discontinue* nil)
+	   (*reading-myself* t))
+       (do ((read nil (read from nil 'end-of-file)))
+	   ((or (eql read 'end-of-file)
+		expr-hook::*discontinue*) nil)
+	 (expand read))))))
 
 (defun scan-loadfile (stream)
   "Scans a file with a bunch of loads in it."
@@ -169,6 +178,7 @@ Discontinued scan."
 	(*in-funs* nil))
     (expand expr)))
 
+;;Some aspects of tracking.
 (defclass base-track ()
   ((keywords :initarg :keywords :initform nil :type list)))
 
@@ -199,14 +209,63 @@ Discontinued scan."
 	(make-instance class :form expr))
   (expand-hook expr))
 
+;;Package stuff.
+(defvar *package-list* nil
+  "List of all found packages.")
+
+(defparameter *ignore-packages* 
+  (list :sb-impl :sb-int :sb-c :sb-pcl :sb-kernel :sb-loop)
+  "Packages to ignore because they're boring or they're\
+ implementation-fidlybits.")
+
+(defvar *couldnt-find-package* nil "List of packages not found.")
+
+(def-scanner in-package (name)
+  (let ((name (package-keyword name)))
+    (setq *cur-package* (access-result 'defpackage name))
+    (unless
+	(cond ((find-package name)
+	       (setq *package* (find-package name)))
+	      ((asdf:find-system name nil)
+	       ;(asdf:oos 'asdf:load-op name) ;Try to get it.
+	       (when (find-package name)
+		 (setq *package* (find-package name)))))
+      (warn "Couldn't find package for ~a. It might not have been\
+ loaded. (May want to check the order in which you are loading the files)
+Discontinued scan."
+	    name)
+      (pushnew name *couldnt-find-package*)
+      (setq expr-hook::*discontinue* t))
+    (when-let (tracker (access-result 'defpackage (intern* name :keyword)))
+      (pushnew (cur-file) (slot-value tracker 'paths) :test 'equalp)))
+  expr)
+
+(defun list-packages-below-path (path)
+  "Lists all the packages that are in the path or in subdirectories\
+ thereof."
+  (remove-if-not
+   (lambda (track)
+     (with-slots (paths) track
+       (find-if (compose (curry #'sub-path-of path) #'namestring) paths)))
+   (copy-list *package-list*)))
+
 (defclass track-package (track-form)
-  ((paths :initarg :parts :initform nil :type list)))
+  ((paths :initarg :parts :initform nil :type list
+     :documentation "Paths where '(in-package' was found.")
+   (uses :initform nil :type list :initarg :uses)
+   (also-uses :initform nil :type list
+     :documentation "Packages it uses without :use.
+TODO")))
 
 (def-scanner defpackage (name &rest rest)
-  (let ((name (typecase name ;Always in keyword.
-		(string (intern name :keyword))
-		(symbol (intern (symbol-name name) :keyword)))))
-    (form-scanner `(defpackage ,name ,@rest) :class 'track-package))
+  (let*((name (package-keyword name))
+	(tracker
+	 (make-instance 'track-package :form `(defpackage ,name ,@rest)
+			:uses (cdr(assoc :use rest)))))
+    (setf (access-result 'defpackage name) tracker)
+    (setq *package-list* ;TODO a special var indicating if it is allowed.
+	  (remove-if (compose (curry #'eql name) #'name) *package-list*))
+    (push tracker *package-list*))
   expr)
 
 ;;Data tracker for functions and macros.
@@ -242,35 +301,56 @@ Discontinued scan."
 (add-scanner-fun 'defun #'fun-scanner)
 (add-scanner-fun 'defmacro #'fun-scanner)
 
-(labels ((add-dep-to-tracker (tracker expr)
-	   (unless tracker (return-from add-dep-to-tracker))
-	   (with-slots (var-dep fun-dep) tracker
-	     (typecase expr
-	       (symbol ;Register var/parameter useages. 
-		(when (and (not (assoc expr *eh-sym-macs*))
-			   (or (access-result 'defvar expr)
-			       (access-result 'defparameter expr)))
-		  (pushnew expr var-dep)))
-	       (list ;Register function/macro useages.
+;;TODO a macro can elude having its symbol checked :/
+;;Additional continuous scanners for getting dependencies.
+(defun check-symbol (symbol)
+  "Checks if the symbol needs to be added as dependency of the\
+ package."
+  (denest
+   (when (and symbol (symbolp symbol) *cur-package*))
+   (when-let ((pkg (symbol-package symbol))))
+   (let ((pkg (intern (package-name pkg) :keyword))))
+   (with-slots (uses also-uses) *cur-package*)
+   (unless (or (find pkg *ignore-packages*) (find pkg uses)
+	       (eql pkg :keyword))
+     (pushnew pkg also-uses))))
+
+(defun add-dep-to-tracker (tracker expr)
+  (denest
+   (when tracker)
+   (with-slots (var-dep fun-dep) tracker)
+   (typecase expr
+     (symbol ;Register var/parameter useages. 
+      (when (and (not (assoc expr *eh-sym-macs*))
+		 (or (access-result 'defvar expr)
+		     (access-result 'defparameter expr)))
+	(pushnew expr var-dep)))
+     (list ;Register function/macro useages.
 ;External flets and lets don't count. TODO They should..
-		(let ((name (car expr)))
-		  (unless (or (find name *eh-funs*) (find name *eh-macs*))
-		    (pushnew name fun-dep)))))))
-	 (additional-scanner-fun (expr)
-	   "Scans for used variables/functions to find "
-	   (when (null expr)
-	     (return-from additional-scanner-fun))
-	   (dolist (fun *in-funs*)
-	     (add-dep-to-tracker
-	      (or (unless (or (listp fun) (symbolp fun))
-		    fun) ;TODO all those derived from depend-track?
-		  (access-result 'defmacro fun)
-		  (access-result 'defun fun)
-		  (access-result 'defvar fun)
-		  (access-result 'defparameter fun)
-		  (access-result 'defgeneric fun))
-	      expr))))
-  (push #'additional-scanner-fun *additional-scan*))
+      (let ((name (car expr)))
+	(unless (or (find name *eh-funs*) (find name *eh-macs*))
+	  (pushnew name fun-dep)))))))
+
+(defun additional-scanner-fun (expr)
+  "Scans for used variables/functions to find "
+  (denest
+   (unless (null expr)
+     (typecase expr
+       (list   (check-symbol (car expr))
+	       (case (car expr)
+		 (quote (check-symbol (cadr expr)))))
+       (symbol (check-symbol expr))))
+   (dolist (fun *in-funs*)
+     (add-dep-to-tracker
+      (or (unless (or (listp fun) (symbolp fun))
+	    fun) ;TODO all those derived from depend-track?
+	  (access-result 'defmacro fun)
+	  (access-result 'defun fun)
+	  (access-result 'defvar fun)
+	  (access-result 'defparameter fun)
+	  (access-result 'defgeneric fun))
+      expr))))
+(push #'additional-scanner-fun *additional-scan*)
 
 (defclass track-generic (track-form typed-track depend-track)
   ((methods :initarg :methods :initform nil :type list)
@@ -369,15 +449,14 @@ true: Follow, assumes the macros in the files have been executed!
 	(:file
 	 (scan-file (format nil "~a.lisp" (or (when (symbolp value)
 						(string-downcase value))
-					      value))
-		    :expression-hook *expression-hook*))
+					      value))))
 	(:module
 	 (let ((*default-pathname-defaults*
 		(pathname (format nil "~a~a/"
 		   (directory-namestring *default-pathname-defaults*)
 		   (or (when (symbolp value) (string-downcase value))
 		       value)))))
-	   (scan-asdf-components (getf (cddr component) :components))))))))
+	   (scan-asdf-components (getf rest :components))))))))
 
 (def-scanner asdf::defsystem (system-name &rest info)
   (setf (access-result 'asdf:defsystem system-name)

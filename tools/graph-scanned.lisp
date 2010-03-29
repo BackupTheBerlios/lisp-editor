@@ -52,7 +52,12 @@ TODO:
 	    (mapcan (when-access '(defvar defparameter) in-package) 
 		    var-dep))))
 
+(defun direct-connection-p (graph from to)
+  "If exists, finds connection between two nodes."
+  (find-if (curry #'eq to) (graph-object-points-to graph from)))
+
 ;;Graphing fully; connections between functions.
+
 (defmethod graph-object-node ((graph (eql 'full)) (null null)))
 
 (defmethod graph-object-node ((graph (eql 'full)) object)
@@ -114,38 +119,8 @@ TODO:
 	      (list got)))
 	  (cdr(assoc :use assoc)))))))
 
+;(defmethod graph-object-points-to ((graph (eql 'full-no-via)) object)
+;  (remove-if (curry #'connection-p '
+;(graph-object 'full object)
 
-
-
-#|
- (let ((dgraph
-       (generate-graph-from-roots
-	'graph-scanned
-	(graph-object-points-to
-	 'graph-scanned (access-result 'defpackage :cl-fad)))))
-  (cl-dot:dot-graph dgraph "/home/jasper/proj/test.png" :format :png))
-;  (cl-graph-object-points-to
-;   'graph-scanned (access-result 'defpackage :generic)))
-
- (time
- (let*((root
-	(mapcan
-	 (lambda (pkg)
-	   (graph-object-points-to 'graph-scanned
-				   (access-result 'defpackage pkg)))
-	 '(:generic :denest
-	   :package-stuff :expression-hook :expression-scan
-	   
-	   :gil :gil-vars :gil-share :gil-style
-	   :gil-read :gil-info :gil-user
-	   :gil-output-util :gil-html :gil-txt :gil-latex
-	   
-	   :gil-contents :gil-log
-	   
-	   :gil-autodoc)))
-       (dgraph
-	(generate-graph-from-roots 'graph-scanned root)))
-   (cl-dot:dot-graph dgraph "/home/jasper/proj/lisp-editor.png"
-		     :format :png)))
- 
-|#
+;TODO graph omiting links that are also already ind

@@ -1,30 +1,55 @@
 (cl:in-package :cl-user)
 
 (defpackage :lisp-ed-website
-  (:use :common-lisp :gil :gil-vars :gil-share :gil-style
-	:gil-autodoc :gil-read :gil-user))
+  (:use :common-lisp :alexandria :gil :gil-vars :gil-share :gil-style
+	:gil-autodoc :gil-read :gil-user)
+  (:export scan hard-scan make-asd make-website)
+  (:documentation "Project website."))
 
 (in-package :lisp-ed-website)
 
-(setq expr-scan:*scan-result* (make-hash-table
- :test 'equalp))
-(defun scan-stuff ()
-  (let ((*default-pathname-defaults* 
-	 #p"/home/jasper/proj/lisp-editor/libs/"))
-    (expr-scan:scan-file "generic.asd")
-    (expr-scan:scan-file "denest.asd")
-    (expr-scan:scan-file "lisp-ed-package-stuff.asd")
-    (expr-scan:scan-file "lisp-ed-path-stuff.asd"))
-  (let ((*default-pathname-defaults* 
-	 #p"/home/jasper/proj/lisp-editor/gil/"))
-    (expr-scan:scan-file "gil.asd"))
-  (let ((*default-pathname-defaults* 
-	 #p"/home/jasper/proj/lisp-editor/tools/"))
-    (expr-scan:scan-file "expression-hook.asd")
-    (expr-scan:scan-file "expression-scan.asd")
-    (expr-scan:scan-file "autodoc.asd")))
+;(setq expr-scan:*scan-result* (make-hash-table :test 'equalp)
+;      expr-scan:*package-list* nil)
 
-(scan-stuff)
+(defun scan ()
+  "Scan that goes via the systems.asd prefer it over hard-scan"
+  (expr-scan:scan-file "systems.asd"))
+
+;(scan)
+
+(defun hard-scan ()
+  "Hard scan that redoes the whole thing.
+Disrecommended, if you want to add files, use expr-scan manually, or just\
+ add them to systems.asd and do scan."
+  (require :gtk)
+  (require :cl-store)
+  (require :cl-dot)
+  (expr-scan:scan-file 
+   (list "libs/" "gil/" "tools/" "doc/")
+   :*load-first* t 
+   :*judge* (lambda (file)
+	      (case (intern (file-namestring file) :keyword)
+		((:|clg.lisp| :|test.lisp|) t)
+		(:|example.lisp| t)))))
+
+;(hard-scan)
+
+(defparameter *package-list*
+  (mapcar
+   #'expr-scan:name
+   (expr-scan:list-packages-below-path "/home/jasper/proj/lisp-editor/"))
+  "List of packages of this project")
+
+(defun make-asd ()
+  "Makes asd file for all the packages."
+  (when (probe-file "systems.asd")
+    (cl-fad:copy-file
+     "systems.asd" 
+     (format nil ".system-backups/systems~a.asd" (get-universal-time))))
+  (asd-scanned:asd-scanned *package-list* 
+     :to-path "/home/jasper/proj/lisp-editor/"))
+
+;(make-asd)
 
 (defun side-paned-page (sidepane)
   (gil-user::side-paned-page-handler
@@ -44,13 +69,14 @@
 (def-document :full-with-hr* ((object expr-scan::base-track) &key)
   (series :hr (document :full object)))
 
-(defun mk-website ()
+(defun make-website ()
   "Makes the website. Only paginated stuff will appear as file, rest to\
  standard output."
   (let*((*default-pathname-defaults* 
 	 #p"/home/jasper/proj/lisp-editor/doc/src/")
 	(*following-directory*
 	 "../htdocs/")
+	(*path-root-mention* "/home/jasper/proj/lisp-editor/")
 	(*attempt-readable* nil)
 	(gil-info::*links* (make-hash-table))
 	(site-contents
@@ -66,16 +92,7 @@
 		(list
 		 (document :pkg pkg
 			   :doc-manners '(:full-with-hr*)))))
-	    '(:generic :denest :alexandria.0.dev
-	      :package-stuff :expression-hook :expression-scan
-	      
-	      :gil :gil-vars :gil-share :gil-style
-	      :gil-read :gil-info :gil-user
-	      :gil-output-util :gil-html :gil-txt :gil-latex
-	      
-	      :gil-contents :gil-log
-	      
-	      :gil-autodoc))))
+	    *package-list*)))
 	(autodoc-contents
 	 (gil-contents:use-contents
 	  (let ((*following-directory* "../htdocs/autodoc/"))
@@ -96,11 +113,4 @@
 	  (*following-directory* "../htdocs/autodoc/"))
       (call autodoc))))
 
-(time (mk-website)) ;TODO it is warning me a bit.
-
-;;documenting cl-fad, however does work.
-(let ((*default-pathname-defaults*
-       #p"/home/jasper/oproj/lispbuilder-read-only/lispbuilder-sdl/"))
-  (expr-scan:scan-file "lispbuilder-sdl.asd"))
-
-	       
+;(time (make-website)) ;TODO it is warning me a bit.

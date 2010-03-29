@@ -10,7 +10,7 @@
 (cl:in-package :cl)
 
 (defpackage :gil-autodoc
-  (:use :common-lisp :alexandria :denest
+  (:use :common-lisp :alexandria :generic :denest
 	:package-stuff :path-stuff
 	:gil :gil-share 
 	:expression-scan)
@@ -26,8 +26,11 @@ TODO messy file."))
 (in-package :gil-autodoc)
 
 (defun documentation* (of type)
-  (when-let (docstr (documentation of type))
-    docstr));TODO make it respect newlines.
+  (typecase-let (docstr (documentation of type))
+    (null   nil)
+    (string docstr)
+    (t      (warn "Documentation string ~s not a string!" docstr)
+            "Doc string was not an object.")))
 
 (defvar *autodoc-dir* ""
   "Autodocumentation automatically to separate directory.
@@ -104,7 +107,7 @@ Probably will want document internal stuff too."
 
 (defun mention+ (name &rest objects)
   "Mentions, assuming either (generic)function, macro, variable or\
- package (via keyword), if ambiguous, in that order."
+ package (via keyword), in that order."
   (or
    (when-let (obj (access-result
 		   '(defun defgeneric defmacro defvar defparameter)
@@ -379,15 +382,11 @@ Got ~D here" allow-listing a))))
 
 (def-document :file-origin ((track track-package) &key)
   "Documents the file origin of a package."
-  (with-slots (expr-scan::paths) track
-    (when expr-scan::paths
-      (glist-list :series
-	  `(,(format nil "Came from file~a: "
-		     (if (null(cdr expr-scan::paths)) "" "s"))
-	    ,@(mapcan (lambda (path)
-			(list (mention-path path) ", "))
-		      (butlast expr-scan::paths))
-	    ,(mention-path (car(last expr-scan::paths))))))))
+  (with-mod-slots "" (expr-scan::paths) track
+    (when paths
+      (series (format nil "Came from file~a: " (if (cdr paths) "s" ""))
+	      (apply #'enumerate 
+		     (mapcar #'mention-path paths))))))
 
 (def-document :description ((package package) &key)
   (if-let (package-obj (access-result 'defpackage
@@ -395,14 +394,16 @@ Got ~D here" allow-listing a))))
     (document :description package-obj)
     (documentation* package t)))
 
-(def-document-form :dep defpackage (name &rest assoc)
-  (declare (ignore name))
-  (let ((uses (cdr(assoc :use assoc))))
-    (series "Uses packages: " (mention 'defpackage (car uses))
-       (glist-list :series
-	 (mapcan (lambda (pkg)
-		   (list ", " (mention 'defpackage pkg)))
-		 (cdr uses))))))
+(def-document :dep ((obj track-package) &key)
+  (series "Uses packages: "
+	  (apply #'enumerate (mapcar (curry #'mention 'defpackage)
+				     (slot-value obj 'expr-scan::uses)))))
+
+(def-document :also-dep ((obj track-package) &key)
+  (series "Also uses packages: "
+	  (apply #'enumerate
+		 (mapcar (curry #'mention 'defpackage)
+			 (slot-value obj 'expr-scan::also-uses)))))
 
 (def-document way ((package package) &key)
   (when-let (package-obj (access-result 'defpackage
@@ -466,6 +467,7 @@ Got ~D here" allow-listing a))))
 			      (document :title package))
     (document :description package)
     (p (document :dep package))
+    (p (document :also-dep package))
     (p (document :file-origin package))
     (glist-list :series rest)))
 

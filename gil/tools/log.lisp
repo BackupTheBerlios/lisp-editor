@@ -10,12 +10,14 @@
 (cl:in-package :cl-user)
 
 (defpackage :gil-log
-  (:use :common-lisp :alexandria :log :path-stuff
-	:gil :gil-read :gil-output-util)
+  (:use :common-lisp :alexandria :generic :log :path-stuff
+	:gil :gil-read :gil-output-util :gil-comms)
   (:export write-rss execute-entry entries-do-if
 	   update force-full-redo)
   (:documentation "Extends log system for executing gil files and\
- producing RSS."))
+ producing RSS.
+
+Sortah depricated before i really started using it ><"))
 
 (in-package :gil-log)
 
@@ -72,51 +74,7 @@ Keywords :all(default), :need-execute (changed after previous execution),
   "Update entry."
   (setf (log-data :last-update-time) time)
   (with-entry-access entry
-    (setf (access :last-update-time) time)
-(defun written-time (ut) ;TODO move somewhere else.
-  "Time, but written out, hopefullying suiting rss."
-  (multiple-value-bind
-	(second minute hour date month year day daylight-p zone)
-      (decode-universal-time ut 0)
-    (declare (ignore daylight-p zone))
-    (flet ((two-digit (n)
-	     (format nil (cond ((< n 10) "0~a") ((< n 100) "~a")) n)))
-      (format nil "~a, ~a ~a ~a, ~a:~a:~a UT"
-	 (aref (vector "Mon" "Tue" "Wed" "Thu" "Fri" "Sat" "Sun") day)
-	 date
-	 (aref (vector "Jan" "Feb" "Mar" "Apr" "May" "Jun"
-		       "Jul" "Aug" "Sep" "Oct" "Nov" "Dec") month)
-	 year
-	 (two-digit hour) (two-digit minute) (two-digit second)))))
-    (unless (access :first-update-time)
-      (setf (access :first-update-time) time))
-    (let ((gil:*lang* :info) ;Gather info.
-	  (gil-info:*contents* nil)
-	  (gil-info:*enclosure* nil)
-;	  (gil-info:*attribute* nil)
-	  (gil-info:*comments-thread* nil)
-	  (gil-info:*notables* nil)
-	  (gil-info:*most-significant-section* nil))
-      (let ((*package* (find-package :gil-user)))
-	(call (execute filename))) ;Gathering
-      
-      ;Conversion to outputs of rss is delayed so can be done with :info
-      ;first. :section should never be written to disk.
-      (setf (access :section) gil-info:*most-significant-section*)
-      
-      (setf (access :notables)
-	    (mapcar (lambda (notable) 
-		      (with-output-to-string (*standard-output*)
-			(let ((gil:*lang* :txt)) (call notable))))
-		    gil-info:*notables*))
-      
-      (when gil-vars:*author*
-	(setf (access :author) gil-vars:*author*))
-      (when gil-info:*comments-thread*
-	(setf (access :comments-thread-name) gil-info:*comments-thread*
-	      (access :comments-thread)
-	      (gil-html:link-url gil-info:*comments-thread*))))))
-
+    (setf (access :last-update-time) time)))
 
 (defun write-str (*lang* &rest objects)
   (with-output-to-string (*standard-output*)

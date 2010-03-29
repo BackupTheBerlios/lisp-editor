@@ -16,6 +16,6 @@
   "Can create and use expression-hook to obtain information about code.
 Any s-expression can be tracked. (So macros and functions can be tracked."
   :serial t
-  :depends-on (:alexandria :expression-hook)
+  :depends-on (:alexandria :expression-hook :cl-fad)
   :components ((:file "expression-scan")))
 

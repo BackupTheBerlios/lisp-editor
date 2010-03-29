@@ -13,7 +13,8 @@
   (:use :common-lisp :alexandria)
   (:export *path-root* from-path-root to-absolute 
 	   path-count-directory-depth
-	   file-extension first-nonexistant-path)
+	   file-extension first-nonexistant-path
+	   sub-path-of)
   (:documentation "Some stuff to assist with paths and paths."))
 
 (in-package :path-stuff)
@@ -75,8 +76,9 @@
 
 (defun file-extension (file)
   "Gets file extension."
-  (when-let (i (position #\. file :from-end t))
-    (values (subseq file i) (subseq file 0 i))))
+  (let ((file (if (pathnamep file) (file-namestring file) file)))
+    (when-let (i (position #\. file :from-end t))
+      (values (subseq file i) (subseq file 0 i)))))
 
 (defun first-nonexistant-path
     (&key (n 0) append-to time-based
@@ -93,3 +95,12 @@ attached)"
   (do ((path try-first (funcall paths-fn)))
       ((if path (probe-file path) t)
        (or path :failed))))
+
+(defun sub-path-of (path with)
+  (let ((i (position #\/ path))
+	(j (position #\/ with)))
+    (cond
+      ((or (not i) (not j))
+       (= (length path) 0))
+      ((and (= i j) (string= (subseq path 0 i) (subseq with 0 j)))
+       (sub-path-of (subseq path (+ i 1)) (subseq with (+ j 1)))))))
