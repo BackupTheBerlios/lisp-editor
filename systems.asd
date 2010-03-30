@@ -4,6 +4,14 @@
 
 (use-package '(:asdf))
 
+(defsystem :lisp-ed-website
+  :description "Project website."
+  :serial t
+  :depends-on (:alexandria :gil :gil-vars :gil-share :gil-style :gil-autodoc :gil-read :gil-user :gil-info :gil-contents :gil-comms :generic :asd-scanned :cl-fad :expression-scan)
+  :components (
+  (:module "doc" :components (
+    (:file "main")))))
+
 (defsystem :graph-scanned
   :description "Uses cl-dot to graph the objects.
 NOTE still in development, some 'playing' in it.
@@ -11,7 +19,7 @@ TODO:
 * Determine if connections are to be expected depending on context.
 * work it into the autodoc"
   :serial t
-  :depends-on (:alexandria :package-stuff :cl-dot :expression-scan :gil-autodoc :alexandria)
+  :depends-on (:package-stuff :cl-dot :expression-scan :gil-autodoc :alexandria)
   :components (
   (:module "tools" :components (
     (:file "graph-scanned")))))
@@ -19,7 +27,7 @@ TODO:
 (defsystem :gil-store-log
   :description ""
   :serial t
-  :depends-on (:alexandria :generic :denest :cl-store :store-log :path-stuff :gil :gil-share :gil-vars :gil-comms :gil-read :gil-output-util)
+  :depends-on (:generic :denest :cl-store :store-log :path-stuff :gil :gil-share :gil-vars :gil-comms :gil-read :gil-output-util :cl-fad :gil-html :alexandria)
   :components (
   (:module "tools" :components (
     (:file "gil-store-log")))))
@@ -29,7 +37,7 @@ TODO:
 Any s-expression can be tracked. (So macros and functions can be tracked.)
 "
   :serial t
-  :depends-on (:alexandria :generic :denest :package-stuff :path-stuff :expression-hook :cl-fad :alexandria)
+  :depends-on (:alexandria :generic :denest :package-stuff :path-stuff :expression-hook :cl-fad)
   :components (
   (:module "tools" :components (
     (:file "expression-scan")))))
@@ -39,7 +47,7 @@ Any s-expression can be tracked. (So macros and functions can be tracked.)
  and must call further expand-hook.
 Used for gathering information on code autodoc via expression-scan."
   :serial t
-  :depends-on (:alexandria :denest :package-stuff :alexandria)
+  :depends-on (:alexandria :denest :package-stuff)
   :components (
   (:module "tools" :components (
     (:file "expression-hook")))))
@@ -50,7 +58,7 @@ Note: keyword 'way' arguments are the defaults.
 
 TODO messy file."
   :serial t
-  :depends-on (:alexandria :generic :denest :package-stuff :path-stuff :gil :gil-share :expression-scan :alexandria)
+  :depends-on (:alexandria :generic :denest :package-stuff :path-stuff :gil :gil-share :expression-scan)
   :components (
   (:module "tools" :components (
     (:file "autodoc")))))
@@ -61,7 +69,7 @@ TODO messy file."
 
 WARNING TODO currently only makes :depends-on if it is :used ! "
   :serial t
-  :depends-on (:alexandria :generic :denest :expression-scan :package-stuff :path-stuff :alexandria)
+  :depends-on (:alexandria :generic :denest :expression-scan :package-stuff :path-stuff)
   :components (
   (:module "tools" :components (
     (:file "asd-scanned")))))
@@ -77,7 +85,7 @@ WARNING TODO currently only makes :depends-on if it is :used ! "
 (defsystem :gil-user
   :description "Package for the user of gil.."
   :serial t
-  :depends-on (:alexandria :denest :gil :gil-vars :gil-share :gil-style :gil-read :gil-info)
+  :depends-on (:alexandria :denest :gil :gil-vars :gil-share :gil-style :gil-read :gil-info :gil-comms)
   :components (
   (:module "gil" :components (
     (:file "user")))))
@@ -88,7 +96,7 @@ WARNING TODO currently only makes :depends-on if it is :used ! "
 
 Sortah depricated before i really started using it ><"
   :serial t
-  :depends-on (:alexandria :generic :log :path-stuff :gil :gil-read :gil-output-util :gil-comms :cl-fad :gil-html :gil-share :alexandria)
+  :depends-on (:alexandria :generic :log :path-stuff :gil :gil-read :gil-output-util :gil-comms :cl-fad :gil-html :gil-share)
   :components (
   (:module "gil" :components (
     (:module "tools" :components (
@@ -141,7 +149,7 @@ Function gather-contents will do the scan :info does and provide input
   :description "Various specifying objects and directly attached
  functions to help use them."
   :serial t
-  :depends-on (:alexandria :gil :gil-vars :generic :alexandria)
+  :depends-on (:alexandria :gil :gil-vars :generic)
   :components (
   (:module "gil" :components (
     (:module "specify" :components (
@@ -158,7 +166,7 @@ Note that you will want to use DENEST with this!
 A lot of the defvars are some things implementors can hang on to,
 so they're applicable to multiple implementations."
   :serial t
-  :depends-on (:alexandria :alexandria)
+  :depends-on (:alexandria)
   :components (
   (:module "gil" :components (
     (:module "specify" :components (
@@ -178,7 +186,7 @@ so they're applicable to multiple implementations."
   :description "Stream reader for GIL.
 TODO needs to filter out whitespace gil-execute"
   :serial t
-  :depends-on (:alexandria :denest :path-stuff :gil :generic :alexandria)
+  :depends-on (:alexandria :denest :path-stuff :generic :gil)
   :components (
   (:module "gil" :components (
     (:file "read")))))
@@ -227,7 +235,7 @@ TODO equations would be neat to have, and crazy not to have.
   :description "Gil->html, not that the files linked internally are all 
 tracked by gil-info."
   :serial t
-  :depends-on (:alexandria :generic :denest :path-stuff :gil-output-util :gil :gil-share :gil-style :gil-vars :gil-comms :gil-info :alexandria)
+  :depends-on (:alexandria :generic :denest :path-stuff :gil-output-util :gil :gil-share :gil-style :gil-vars :gil-comms :gil-info)
   :components (
   (:module "gil" :components (
     (:module "output" :components (
@@ -286,7 +294,7 @@ With-log will read and later write for you."
 (defsystem :path-stuff
   :description "Some stuff to assist with paths and paths."
   :serial t
-  :depends-on (:alexandria :alexandria)
+  :depends-on (:alexandria)
   :components (
   (:module "libs" :components (
     (:file "path-stuff")))))
@@ -294,7 +302,7 @@ With-log will read and later write for you."
 (defsystem :package-stuff
   :description "Some stuff to do with packages."
   :serial t
-  :depends-on (:alexandria :alexandria)
+  :depends-on (:alexandria)
   :components (
   (:module "libs" :components (
     (:file "package-stuff")))))
@@ -303,7 +311,7 @@ With-log will read and later write for you."
   :description "Logs files, when they change, allows to store.
 Write-log writes the all of *log-file*"
   :serial t
-  :depends-on (:alexandria :alexandria :cl-fad)
+  :depends-on (:alexandria :cl-fad)
   :components (
   (:module "libs" :components (
     (:file "log")))))
@@ -311,7 +319,7 @@ Write-log writes the all of *log-file*"
 (defsystem :generic
   :description "Assortment of little useful macros/functions."
   :serial t
-  :depends-on (:alexandria :alexandria)
+  :depends-on (:alexandria)
   :components (
   (:module "libs" :components (
     (:file "generic")))))
@@ -330,16 +338,8 @@ with non-keyword symbols are exported.
 TODO remove some nastyness that might happen if denest is nested with self..
 Can it be done?"
   :serial t
-  :depends-on ()
+  :depends-on (:generic :alexandria)
   :components (
   (:module "libs" :components (
     (:file "denest")))))
-
-(defsystem :lisp-ed-website
-  :description "Project website."
-  :serial t
-  :depends-on (:alexandria :gil :gil-vars :gil-share :gil-style :gil-autodoc :gil-read :gil-user :gil-info :gil-contents :generic :asd-scanned :cl-fad :expression-scan)
-  :components (
-  (:module "doc" :components (
-    (:file "main")))))
 

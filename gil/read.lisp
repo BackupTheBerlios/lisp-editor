@@ -108,7 +108,7 @@ TODO needs to filter out whitespace gil-execute")
 (defun execute-file (file-name)
   (gil:glist-list :series
     (denest
-     (collecting (nil list))
+     (collecting (:onto list))
      (flet ((collect-eval (item)
 	      (collecting (eval item)))))
      (let ((len (length file-name)))

@@ -135,10 +135,11 @@ Used for gathering information on code autodoc via expression-scan."))
 
 (def-base-macro let (let (&rest vars) &body body)
   (denest
-   (collecting (nil binds col-bind))
-   (collecting (nil *eh-vars* col-var))
-   (:return-this
-     (`(,let (,@binds) ,@(e-list body))))
+   (block base-let)
+   (collecting (:onto binds :collect col-bind :ret nil))
+   (collecting (:onto *eh-vars* :collect col-var :ret nil))
+   (after (return-from base-let
+	    `(,let (,@binds) ,@(e-list body))))
    (dolist (v vars)
      (cond
        ((listp v) v
@@ -175,13 +176,14 @@ Used for gathering information on code autodoc via expression-scan."))
   (let ((*in-funs* (cons name *in-funs*)))
     `((,@(denest
 	  (let (state))
-	  (collecting (nil arg col-arg)) ;TODO pretty bad.
-	  (collecting (nil key col-key))
-	  (collecting (nil opt col-opt))
-	  (collecting (nil rest col-rest))
-	  (:return-this (`(,@arg ,@(when opt `(&key ,@opt))
-				 ,@(when key `(&optional ,@key))
-				 ,@(when rest `(&rest ,@rest)))))
+	  (collecting (:onto arg :collect col-arg :ret nil))
+	  (collecting (:onto key :collect col-key :ret nil))
+	  (collecting (:onto opt :collect col-opt :ret nil))
+	  (collecting (:onto rest :collect col-rest :ret nil))
+	  (after (return-from base-fun
+		   `(,@arg ,@(when opt `(&key ,@opt))
+			   ,@(when key `(&optional ,@key))
+			   ,@(when rest `(&rest ,@rest)))))
 	  (dolist (a args)
 	    (case a
 	      ((&key &optional &rest) (setf state a))
@@ -235,14 +237,14 @@ Used for gathering information on code autodoc via expression-scan."))
 
 (defun expand-funs (funs &key flat-arg)
   "Expands flet/macrolet input and returns the names in the second value."
-  (declare (ignorable flat-arg))
-  (denest (collecting (nil cr col-result))
-	  (collecting (nil cn col-names))
-	  (:return-this ((values cr cn)))
-	  (dolist (fun funs)
-	    (destructuring-bind (name (&rest args) &body body) fun
-	      (col-result `(,name ,@(base-fun name args body :flat-arg flat-arg)))
-	      (col-names name)))))
+  (denest
+   (collecting (:onto cr :collect col-result :ret nil))
+   (collecting (:onto cn :collect col-names :ret nil))
+   (after (return-from expand-funs (values cr cn)))
+   (dolist (fun funs)
+     (destructuring-bind (name (&rest args) &body body) fun
+       (col-result `(,name ,@(base-fun name args body :flat-arg flat-arg)))
+       (col-names name)))))
 
 (def-base-macro labels (flet (&rest funs) &body body)
   (multiple-value-bind (res names) (expand-funs funs :flat-arg t)
@@ -307,7 +309,7 @@ Used for gathering information on code autodoc via expression-scan."))
      ,@(e-list body)))
 
 (def-base-macro setq (setq &rest pairs)
-  `(,setq ,@(denest (summing (0 k)) (collecting ())
+  `(,setq ,@(denest (summing (:onto k)) (collecting ())
 		    (dolist (p pairs)
 		      (collecting (if (= (mod k 2) 0) p (expand k)))
 		      (summing 1)))))

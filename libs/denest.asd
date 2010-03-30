@@ -10,4 +10,5 @@
 
 Also has some 'internal' macros that make use of the keywords. These can\
  be used directly with USE-DENEST-MACRO."
+    :depends-on (:generic :alexandria)
     :components ((:file "denest")))

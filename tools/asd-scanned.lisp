@@ -21,12 +21,14 @@ WARNING TODO currently only makes :depends-on if it is :used ! "))
 
 (in-package :asd-scanned)
 
-(defvar *package-name-hook*
+(defparameter *package-name-hook*
   (lambda (name) ;Go round like that do detect nicknames.
     (let*((name (package-name (find-package (package-keyword name))))
 	  (ret  (intern (if-let (i (position #\. name))
 				(subseq name 0 i) name) :keyword)))
-      (when (asdf:find-system ret nil) ret)))
+      (when (or (asdf:find-system ret nil) 
+		(string/= (string-downcase name) "sb-" :end1 3))
+	ret)))
   "Function called on package name to get system name.
 Default assumes stuff after '.' is to be ignored.")
 

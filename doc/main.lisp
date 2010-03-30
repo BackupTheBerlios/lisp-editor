@@ -32,7 +32,8 @@ Disrecommended, if you want to add files, use expr-scan manually, or just\
 		((:|clg.lisp| :|test.lisp|) t)
 		(:|example.lisp| t)))))
 
-;(hard-scan)
+;;WARNING dont scan if the scan encounter the call it was scanned from!
+;(time (hard-scan)) 
 
 (defparameter *package-list*
   (mapcar
@@ -49,7 +50,7 @@ Disrecommended, if you want to add files, use expr-scan manually, or just\
   (asd-scanned:asd-scanned *package-list* 
      :to-path "/home/jasper/proj/lisp-editor/"))
 
-;(make-asd)
+(make-asd)
 
 (defun side-paned-page (sidepane)
   (gil-user::side-paned-page-handler
@@ -102,7 +103,7 @@ Disrecommended, if you want to add files, use expr-scan manually, or just\
 	(*lang* :html))
     (with-open-file (stream "default.css" :direction :output
 		     :if-exists :supersede :if-does-not-exist :create)
-      ) ;;Clear .css.
+      ) ;;Clear css.
     (let ((*handle-page* (side-paned-page site-contents)))
       (call(execute "website.gil")))
     (let ((*handle-page* (side-paned-page
@@ -114,3 +115,4 @@ Disrecommended, if you want to add files, use expr-scan manually, or just\
       (call autodoc))))
 
 ;(time (make-website)) ;TODO it is warning me a bit.
+

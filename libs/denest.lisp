@@ -4,13 +4,15 @@
 (cl:in-package :cl-user)
 
 (defpackage :denest
-  (:use :common-lisp)
-  (:export denest def-denest-macro use-denest-macro
-	 ;Accumulators and reducers. Here because they need to expose
+  (:use :common-lisp :generic :alexandria)
+  (:export denest	 ;Accumulators and reducers. Here because they need to expose
          ;flet/macrolet to user.
+	   after
+	   
 	   accumulating summing collecting appending
 	   besting maximizing minimizing
-	   return-accumulate return-accumulate*)
+	   
+	   do-1 do-parallel)
   (:documentation "Macro to denest, remove nestedness of macros\
 /functions. Was somewhat of a relevation to me and suprising that this\
  function isn't being screamed from the rooftops. Turns out that macros\
@@ -34,44 +36,17 @@ Best and easiest description is:
      (car args)
      `(,@(car args)
        (denest ,@(cdr args)))))
-All the actual version does is attach denest-specific macros on keywords,
-and provide a top block."
+All the actual version also does is provide a top block."
   (labels ((expand (forms)
-	     (cond
-	       ((null (cdr forms))
-		(car forms))
-	       ((keywordp (caar forms))
-		`(use-denest-macro ,@(car forms) (denest ,@(cdr forms))))
-	       (t
-		`(,@(car forms) ,(expand (cdr forms)))))))
+	     (if (null (cdr forms))
+	       (car forms)
+	       `(,@(car forms) ,(expand (cdr forms))))))
     `(block denest-top ,(expand forms))))
 
-(defvar *denest-macros* (make-hash-table)
-  "Macros for denest when given a keyword.")
-
-(defmacro def-denest-macro (name (&rest args) &body body)
-  "Create a macro applied when denests meets an keyword.\
- :return is reserved."
-  (unless (keywordp name)
-    (error "Denest-specific macros need to be set on keyword; if the\
- namespace isn't taken, you could just replace def-denest-macro with\
- defmacro."))
-  (let ((form (gensym)))
-    `(flet ((denest-keyword-macro (,form)
-	     (destructuring-bind (,@args) ,form
-	       ,@body)))
-       (setf (gethash ,name *denest-macros*) #'denest-keyword-macro))))
-
-(defun synonym (of &rest syns)
-  (let ((of (gethash of *denest-macros*)))
-    (mapcar (lambda (name) (setf (gethash name *denest-macros*) of))
-	    syns)))
-
-(defmacro use-denest-macro (name &rest args)
-  "Applies a denest macro."
-  (funcall (gethash name *denest-macros*) args))
-
 ;;--------------------------------------------------------------------------
+
+(defmacro after (after &body before)
+  `(progn ,@before ,after))
 
 ;;Macros applicable to denesting. (But also by themselves.)
 
@@ -95,34 +70,35 @@ Multiple accumulations need to go by different names."
        ,@body)
      ,onto))
 
-(defmacro summing ((&optional initial (onto (gensym)) without-let)
-		   &body body)
+(defmacro summing
+    ((&key (initial 0) (onto (gensym)) (by-name 'summing) without-let)
+     &body body)
   "Sum everything asked to, return result."
-  (unless initial (setf initial 0)) ;This way, for sake of return-accumulate
-  `(accumulating (,initial ,onto + summing ,without-let) ,@body))
+  `(accumulating (,initial ,onto + ,by-name ,without-let) ,@body))
 
-(defmacro collecting ((&optional (initial '(list)) (onto (gensym))
-				 (collect 'collecting) (append 'appending)
-				 (last (gensym)) (append-1 (gensym)))
+(defmacro collecting ((&key (init '(list)) (onto (gensym))
+                            (collect 'collecting) (append 'appending)
+                            (last (gensym)) (append-1 (gensym))
+			    (ret t))
 		      &body body)
   "Collect everything asked to, return result. (Also, appending)
 If you want to use two different collectings, you need to provide the\
  collect argument.(To avoid namespace collision, and to separate the two.)"
-  `(let ((,onto ,initial) ,last)
+  `(let ((,onto ,init) ,last)
      (declare (ignorable ,onto))
-     (flet ((,append-1 (collected)
-	      (if (null ,onto)
-		  (progn (setf ,onto collected)
-			 (setf ,last (last ,onto)))
+     (labels ((,append-1 (collected)
+		(if (null ,onto)
+		  (setf ,onto collected
+		        ,last (last ,onto))
 		  (setf (cdr ,last) collected
-			,last (last ,last)))))
-       (flet ((,append (&rest appended)
+			,last (last ,last))))
+	      (,append (&rest appended)
 		(dolist (a appended)
 		  (,append-1 a)))
 	      (,collect (&rest collected)
 		(,append-1 collected)))
-	 ,@body))
-     ,onto))
+       ,@body)
+     ,(when ret onto)))
 
 (defmacro besting ((valuator &key intermediate initial (best (gensym))
 			     (by-name 'besting) (changer (gensym)))
@@ -130,10 +106,7 @@ If you want to use two different collectings, you need to provide the\
   "Find best variant of something using function."
   `(let (,@intermediate)
      (flet ((,changer (a b)
-	      (if (,valuator a b ,@(mapcar (lambda (el)
-					     (cond ((symbolp el) el)
-						   ((listp el) (car el))))
-					   intermediate))
+	      (if (,valuator a b ,@(mapcar #'delist intermediate))
 		a b)))
        (accumulating (,initial ,best ,changer ,by-name) ,@body))))
 
@@ -146,96 +119,76 @@ If you want to use two different collectings, you need to provide the\
   "Minimized a number. WARNING, TODO can get rid of initial?"
   `(besting (< :initial ,initial :best ,min :by-name  minimizing) ,@body))
 
-;;Finishing.
-(def-denest-macro :until ((cond &optional return (to 'denest-top)) 
-			  &body body)
-  `(if ,cond (return-from ,to ,return) (progn ,@body)))
+;;Iterating
+(defvar *do-parallel-hash* (make-hash-table)
+  "Hashtable with defined do-parallels.")
 
-(def-denest-macro :while ((cond &optional return (to 'denest-top)) 
-			  &body body)
-  `(if (not ,cond) (return-from ,to ,return) (progn ,@body)))
+(defmacro def-do-parallel (name (&rest args) &key var until sym-mac)
+  "Define an operation for do-parallel.
+:return, :hash-table are overridden, and others are also defined on\
+ keywords."
+  `(setf (gethash ',name *do-parallel-hash*)
+	 (lambda (,@args)
+	   (values ,var ,until ,sym-mac))))
 
-(synonym :until :when-return)
-(synonym :while :unless-return :find)
+(def-do-parallel :do (var init change) :var `(,var ,init ,change))
+(def-do-parallel :until (until) :until until)
+(def-do-parallel :while (while) :until `(not ,while))
+(def-do-parallel :range (var from to &optional (by 1))
+  :var `(,var ,from (+ ,var ,by)) :until `(> ,var ,to))
 
-(def-denest-macro :next-returns ((&optional (block 'denest-top))
-				 &body body)
-  "Make the next statement be what is returned. (Last come first served)
-`(return-from ,block (progn ,@body)))"
-  `(return-from ,block (progn ,@body)))
+(def-do-parallel :times (cnt &optional (var (gensym "do-parallel-times")))
+  :var `(,var 0 (+ ,var 1)) :until `(>= ,var ,cnt))
 
-(def-denest-macro :return-this ((value &optional (block 'denest-top))
-				&body body)
-  "Make the next value returned. (Last come first served)
-  `(progn ,@body (return-from ,block ,value))"
-  `(progn ,@body (return-from ,block ,value)))
+(def-do-parallel :list (var &optional (list nil) (by 'cdr)
+			   (iter-var (gensym "do-parallel-list")))
+  :var `(,iter-var ,list (,by ,iter-var)) :until `(null ,var)
+  :sym-mac `(,var '(car ,iter-var)))
 
-;;Some iterators.
-(def-denest-macro :integer-interval ((i from to &optional (by 1))
-				     &body body)
-  "Does body with i on the interval."
-  (let ((end (gensym)))
-    `(let ((,end ,to))
-       (do ((,i ,from (+ ,i ,by)))
-	   ((>= ,i ,end) nil)
-	 ,@body))))
+(def-do-parallel :array (var array
+			    &key (by 1) (from 0) (to `(length ,array))
+			    (i (gensym "do-parallel-array")))
+  :var `(,i ,from (+ ,i ,by)) :until `(>= ,var ,to)
+  :sym-mac `(,var '(aref ,array ,i)))
 
-(def-denest-macro :integer-block ((&rest block) &body body)
-  "A block of integers."
-  (if (null block)
-    `(progn ,@body)
-    `(use-denest-macro :integer-interval ,(car block)
-       (use-denest-macro :integer-block (,@(cdr block)) ,@body))))
+(defmacro do-parallel ((&rest clauses) &body body)
+  "Iterate various ways in parallel."
+  (denest
+   (let ((hash nil) (return '(values))))
+   (collecting (:onto do-vars :collect col-var :ret nil))
+   (collecting (:onto do-until :collect col-until :ret nil))
+   (collecting (:onto sym-macs :collect col-sym :ret nil)
+     (dolist (clause clauses)
+       (case (car clause)
+	 (:hash-table
+ 	   (assert (null hash) nil
+		   "(TODO?)Can do only one hash in parallel.")
+	   (setf hash (cdr clause)))
+	 (:return
+	   (setf return (cadr clause)))
+	 (t
+	  (multiple-value-bind (var until sym-mac)
+	      (apply (gethash (car clause) *do-parallel-hash*)
+		     (cdr clause))
+	    (col-var var)
+	    (col-until until)
+	    (col-sym sym-mac)))))
+     (return-from do-parallel 
+       `(symbol-macrolet (,@sym-macs)
+	  ,(if hash
+	     (with-gensyms ((top-block "to-parallel-block"))
+	       `(block ,top-block
+		  `(let (,@(mapcar (rcurry #'subseq 0 2) do-vars))
+		     (maphash (lambda (,(car hash))
+				,@body
+				(setf ,@(mapcan #'cdr do-vars))
+				(when (or ,@do-until)
+				  '(return-from top-block ,return)))
+			      ,(cadr hash))
+		     ,return)))
+	     `(do (,@do-vars) ((or ,@do-until) ,return)
+		,@body)))))))
 
-(def-denest-macro :on-vector
-    ((el vector &key (vect-gs (gensym)) (from 0) (to `(length ,vect-gs))
-	 (i (gensym))) &body body)
-  "Iterates on vector. TODO make like :on-list"
-  `(let ((,vect-gs ,vector))
-     (use-denest-macro :integer-interval (,i ,from ,to)
-       (symbol-macrolet ((,el (aref ,vect-gs ,i)))
-	 ,@body))))
-
-(def-denest-macro :on-list ((&rest els) &body body)
-  "Iterate on list, or on multiple lists. Elements in form (el list).
-Symbols are symbol-macrolets such that they're setf-able."
-  (let ((gs (mapcar (lambda (el) (declare (ignore el)) (gensym)) els)))
-    `(do (,@(mapcar (lambda (el g) `(,g ,(cadr el) (cdr ,g))) els gs))
-	 ((or ,@(mapcar (lambda (g) `(null ,g)) gs)) (values))
-       (symbol-macrolet (,@(mapcar (lambda (el g) `(,(car el) (car ,g)))
-				   els gs))
-	 ,@body))))
-
-(def-denest-macro :on-hash ((key element hash) &body body)
-  "Iterate hash table."
-  `(maphash (lambda (,key ,element)
-	      ,@body) ,hash))
-
-;;Other
-
-(def-denest-macro :firstly ((&body do) &body body)
-  "Do something at the start. ]prog ,@do ,@body)"
-  `(progn ,@do ,@body))
-
-(def-denest-macro :lastly ((&body do) &body body)
-  "Do something at the end, skipped if returned in some way.
- (progn ,@body)"
-  `(progn ,@body ,@do))
-
-(def-denest-macro :cond ((&rest clauses) &body body)
-  "Uses COND, the body is that t condition."
-  `(cond ,@clauses (t ,@body)))
-
-;;Very basic stuff, just to make writing it shorter.
-
-(def-denest-macro :slots ((&rest slots) obj &body body)
-  "With-slots denest variant, just to save a few characters."
-  `(with-slots (,@slots) ,obj ,@body))
-
-(def-denest-macro :mval ((&rest values) input &body body)
-  "Multiple-value-bind variant, just to save a few characters."
-  `(multiple-value-bind (,@values) ,input ,@body))
-
-(def-denest-macro :lval ((&rest args) list &body body)
-  "destructuring-bind variant, just to save a few characters."
-  `(multiple-value-bind (,@args) ,list ,@body))
+(defmacro do-1 (clause &body body)
+  "Iterates over one thing."
+  `(do-parallel (,clause) ,@body)) ;do-parallel has it covered.

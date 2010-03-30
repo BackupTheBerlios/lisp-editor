@@ -16,7 +16,9 @@
 	   constant
 	   
 	   for-more setf-
-	   case-let typecase-let when-do
+	   case-let typecase-let when-let-n when-do
+
+	   def-setf-fun
 
 	   mk with-mod-slots
 	   with-access with-mod-access
@@ -75,6 +77,13 @@
   `(let ((,var ,is))
      (typecase ,var
        ,@cases)))
+
+(defmacro when-let-n (clauses &body body)
+  "Do body if all variables in clauses non-nil"
+  `(when-let ,(car clauses)
+     ,@(if (null (cdr clauses))
+	 body
+	 `((when-let-n ,(cdr clauses) ,@body)))))
 
 (defmacro when-do (cond &rest do)
   "return-from the condition, if the condition is true."
@@ -184,3 +193,10 @@ together. WARNING Destructive on list!!"
 			:test test :limit (- limit 1)))))
 	    (clout-assoc list :test test))
     list))
+
+(defmacro def-setf-fun (name (&rest args) &body body)
+  (with-gensyms (to)
+    `(progn (defun ,name (,@args) ,@body)
+       (defun (setf ,name) (,to ,@args)
+         ,@(butlast body)
+         (setf ,(car(last body)) ,to)))))

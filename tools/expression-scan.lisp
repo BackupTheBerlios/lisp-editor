@@ -125,6 +125,23 @@ Providing a list of fun-names will search them in sequence."
 (defvar *load-first* nil)
 (defvar *judge* (constant t))
 
+(defun check-symbol (symbol)
+  "Checks if the symbol needs to be added as dependency of the\
+ package."
+  (denest
+   (when (and symbol (symbolp symbol) *cur-package*))
+   (when-let ((pkg (symbol-package symbol))))
+   (let ((pkg (intern (package-name pkg) :keyword))))
+   (with-slots (uses also-uses) *cur-package*)
+   (unless (or (find pkg *ignore-packages*) (find pkg uses)
+	       (eql pkg :keyword))
+     (pushnew pkg also-uses))))
+
+(defun check-top (top)
+  (typecase top
+    (symbol (check-symbol top))
+    (list   (mapcar #'check-top top))))
+
 ;;Scanning stuff. ;;TODO should some of it be other package?
 (defun scan-file (from ;This aught to be default, right?
 		  &key (*package* (find-package :cl-user))
@@ -161,6 +178,7 @@ Providing a list of fun-names will search them in sequence."
        (do ((read nil (read from nil 'end-of-file)))
 	   ((or (eql read 'end-of-file)
 		expr-hook::*discontinue*) nil)
+	 (check-top read)
 	 (expand read))))))
 
 (defun scan-loadfile (stream)
@@ -176,6 +194,7 @@ Providing a list of fun-names will search them in sequence."
   "Scans a single expression."
   (let ((*expression-hook* #'scan-expression-hook)
 	(*in-funs* nil))
+    (check-top expr)
     (expand expr)))
 
 ;;Some aspects of tracking.
@@ -301,20 +320,6 @@ TODO")))
 (add-scanner-fun 'defun #'fun-scanner)
 (add-scanner-fun 'defmacro #'fun-scanner)
 
-;;TODO a macro can elude having its symbol checked :/
-;;Additional continuous scanners for getting dependencies.
-(defun check-symbol (symbol)
-  "Checks if the symbol needs to be added as dependency of the\
- package."
-  (denest
-   (when (and symbol (symbolp symbol) *cur-package*))
-   (when-let ((pkg (symbol-package symbol))))
-   (let ((pkg (intern (package-name pkg) :keyword))))
-   (with-slots (uses also-uses) *cur-package*)
-   (unless (or (find pkg *ignore-packages*) (find pkg uses)
-	       (eql pkg :keyword))
-     (pushnew pkg also-uses))))
-
 (defun add-dep-to-tracker (tracker expr)
   (denest
    (when tracker)
@@ -333,23 +338,17 @@ TODO")))
 
 (defun additional-scanner-fun (expr)
   "Scans for used variables/functions to find "
-  (denest
-   (unless (null expr)
-     (typecase expr
-       (list   (check-symbol (car expr))
-	       (case (car expr)
-		 (quote (check-symbol (cadr expr)))))
-       (symbol (check-symbol expr))))
-   (dolist (fun *in-funs*)
-     (add-dep-to-tracker
-      (or (unless (or (listp fun) (symbolp fun))
-	    fun) ;TODO all those derived from depend-track?
-	  (access-result 'defmacro fun)
-	  (access-result 'defun fun)
-	  (access-result 'defvar fun)
-	  (access-result 'defparameter fun)
-	  (access-result 'defgeneric fun))
-      expr))))
+  (unless (null expr)
+    (dolist (fun *in-funs*)
+      (add-dep-to-tracker
+       (or (unless (or (listp fun) (symbolp fun))
+	     fun) ;TODO all those derived from depend-track?
+	   (access-result 'defmacro fun)
+	   (access-result 'defun fun)
+	   (access-result 'defvar fun)
+	   (access-result 'defparameter fun)
+	   (access-result 'defgeneric fun))
+       expr))))
 (push #'additional-scanner-fun *additional-scan*)
 
 (defclass track-generic (track-form typed-track depend-track)

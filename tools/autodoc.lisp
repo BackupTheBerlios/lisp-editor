@@ -179,7 +179,7 @@ Probably will want document internal stuff too."
 (defun document-args
     (args &key (allow-listing t)
      (special-variable-makers '(defvar defparameter) type))
-  (collecting (nil arg-doc)
+  (collecting (:onto arg-doc)
     (dolist (a args)
       (collecting
        (cond
@@ -217,7 +217,7 @@ Got ~D here" allow-listing a))))
   (denest
    (unless (null list))
    (let ((cur "") need-mention))
-   (collecting (nil deps)
+   (collecting (:onto deps)
      (dolist (sym list)
        (when-let (pkg (to-package-name sym))
 	 (cond
@@ -386,7 +386,8 @@ Got ~D here" allow-listing a))))
     (when paths
       (series (format nil "Came from file~a: " (if (cdr paths) "s" ""))
 	      (apply #'enumerate 
-		     (mapcar #'mention-path paths))))))
+		     (mapcar (compose #'mention-path #'namestring)
+			     paths))))))
 
 (def-document :description ((package package) &key)
   (if-let (package-obj (access-result 'defpackage
