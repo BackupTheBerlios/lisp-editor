@@ -109,11 +109,10 @@ Providing a list of fun-names will search them in sequence."
   "The expression hook of the scanner."
   (dolist (fn *additional-scan*)
     (funcall fn expr))
-  (or
-   (when (and expr (listp expr)) ;See if any trackers for it.
-     (when-let (fn (gethash (car expr) *fun-scan*))
-       (funcall fn expr))) ;Trackers need to expand-hook, (otherwise stops.)
-   (expand-hook expr))) ;Otherwise expand-hook itself.
+  (when (and expr (listp expr)) ;See if any trackers for it.
+    (when-let (fn (gethash (car expr) *fun-scan*))
+      (funcall fn expr)))
+  (expand-hook expr))
 
 (defun scan-macrohook (expander form env)
   "Function for in *macroexpand-hook*, doesn't make a nearly as complete\
@@ -140,7 +139,8 @@ Providing a list of fun-names will search them in sequence."
 (defun check-top (top)
   (typecase top
     (symbol (check-symbol top))
-    (list   (mapcar #'check-top top))))
+    (list   (check-top (car top))
+	    (check-top (cdr top)))))
 
 ;;Scanning stuff. ;;TODO should some of it be other package?
 (defun scan-file (from ;This aught to be default, right?

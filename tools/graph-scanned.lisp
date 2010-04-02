@@ -90,6 +90,7 @@ TODO:
     ((graph (eql 'full)) (fun track-fun))
   (dep-link fun (package-keyword (name fun))))
 
+;;TODO recognize identically linked methods.
 (defmethod graph-object-points-to
     ((graph (eql 'full)) (fun track-generic))
   (append (dep-link fun (package-keyword (name fun)))
@@ -109,6 +110,7 @@ TODO:
     ((graph (eql 'package)) (track track-form))
   (destructuring-bind (definer name &rest assoc)
       (slot-value track 'expr-scan::form)
+    (declare (ignore name))
     (case definer
       (defpackage
        ;Note: assumes stuff on how declared.
@@ -118,6 +120,22 @@ TODO:
 					  (package-keyword pkg)))
 	      (list got)))
 	  (cdr(assoc :use assoc)))))))
+
+(defun minimal-root (graph elements)
+  "List everything it points to but _not_ indirectly."
+  (unless (null elements)
+    (let ((links (graph-object-points-to graph (car elements))))
+      (cons (car elements)
+	    (minimal-root
+	     graph (remove-if (lambda (el)
+				(find-if (rcurry #'eq el) links))
+			      (cdr elements)))))))
+
+(defmethod graph-object-points-to ((graph (eql 'full-not-indirect)) track)
+  (minimal-root graph (graph-object-points-to 'full track)))
+
+(defmethod graph-object-node ((graph (eql 'full-not-indirect)) track)
+  (graph-object-node 'full track))
 
 ;(defmethod graph-object-points-to ((graph (eql 'full-no-via)) object)
 ;  (remove-if (curry #'connection-p '

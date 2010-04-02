@@ -96,7 +96,7 @@ tracked by gil-info.")
 (def-call (symbol symbol)
   (case symbol
     ((:newline :nbnl :non-breaking-newline)
-     (wformat "<br\>"))
+     (wformat "<br>"))
     ((:space :nbsp :non-breaking-space)
      (wformat "&nbsp;"))
     ((:hr :horizontal-ruler)

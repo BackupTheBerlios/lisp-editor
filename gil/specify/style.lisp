@@ -43,12 +43,12 @@
 
 ;TODO: needs string as argument; problem is that i need it case sensitive.
 (defun refer-style (style &rest objects)
-  (glist-list (mk refer-style :refer style) objects))
+  (glist-list (make-instance 'refer-style :refer style) objects))
 
 (defclass inline-style ()
   ((style :initarg :style :type list))
   (:documentation "in-line style."))
 
 (defun inline-style (style &rest objects)
-  (glist-list (mk inline-style :style style)
+  (glist-list (make-instance 'inline-style :style style)
 	      objects))

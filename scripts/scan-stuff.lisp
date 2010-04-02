@@ -5,7 +5,7 @@
   (:export scan-libcl scan-self scan-cl-store autodoc asd )
   (:documentation "Attempt to scan many packages made by others, and to\
  then use that."))
-.spring/
+
 (in-package :scan-stuff)
 
 (defvar *base-directory* "/home/jasper/oproj/")
@@ -22,6 +22,7 @@
 	 (pathname (format nil "~a~a" *default-pathname-defaults*
 			   rel-directory))))
     (when load-first (load file))
+    (when (asdf:find-system package nil) (require package))
     (expr-scan:scan-file file)))
 
 ;;Scan files.
@@ -119,11 +120,15 @@ Note that it loads them too; this may mean you have to watch out not to\
   (scan-file :zpb-ttf)
   (scan-file :zpng)))
 
+(scan-libcl)
+
 (defun scan-cl-store (&optional (*default-pathname-defaults*
 				 (from-base "cl-store/")))
   "Apparently successful scan of cl-store."
-  (load "cl-store.asd")
+  (require :cl-store)
   (expr-scan:scan-file "cl-store.asd"))
+
+(scan-cl-store)
 
 (def-document :object-doc
     ((object expr-scan::base-track) &key)
@@ -164,8 +169,10 @@ TODO woefully wrong about the path-root-mention for :cl-store.
  change it such that it depends on the path listed in the scan result."
   (let*((*default-pathname-defaults* 
 	 #p"/home/jasper/proj/lisp-editor/doc/src/")
-	(*path-root-mention* (from-base "libcl-2009-10-27-beta/"))
-	(*path-root-link* (from-base "libcl-2009-10-27-beta/"))
+	(*path-root-mention*
+	 (namestring(from-base "libcl-2009-10-27-beta/")))
+	(*path-root-link*
+	 (namestring(from-base "libcl-2009-10-27-beta/")))
 	(gil-vars:*following-directory* "../htdocs/autodoc/")
 	(gils::*section-page-level* 1)
 	(gil-info::*links* (make-hash-table))
@@ -180,6 +187,8 @@ TODO woefully wrong about the path-root-mention for :cl-store.
     (mapcar (lambda (*lang*)
 	      (call autodoc))
 	    '(:info :html))))
+
+;(autodoc)
 
 (defun asd-outside ()
   "Make a .asd for the package.
@@ -200,18 +209,20 @@ TODO same as autodoc."
   "Make a graph of the functions in package."
   (let ((package-result
 	 (expr-scan:access-result 
-	  'defpackage (graph-scanned::package-keyword pkg))))
+	  'defpackage (graph-scanned::package-keyword (find-package pkg)))))
     (cl-dot:dot-graph
      (cl-dot:generate-graph-from-roots
-      'graph-scanned::full
+      'graph-scanned::full;-not-indirect
       (if with-package-top
 	(list package-result)
 	(remove-if (lambda (res)
 		     (eql (type-of res) 'expr-scan:track-package))
 		   (cl-dot:graph-object-points-to
 		    'graph-scanned::full package-result))))
-     (format nil "doc/htdocs/autodoc/data/~a.png" pkg)
+     (print(format nil "doc/htdocs/autodoc/data/~a.png" pkg))
      :format :png)))
+
+(mapcar #'graph-package *package-list*)
 
 (defun graph ()
   "Graph the functions of the packages."
@@ -229,3 +240,4 @@ TODO same as autodoc."
 ;(let ((*default-pathname-defaults*
 ;       #p"/home/jasper/oproj/clg-0.93/gtk/"))
 ;  (expr-scan:scan-file "gtk.asd"))
+(load "tools/graph-scanned.lisp")

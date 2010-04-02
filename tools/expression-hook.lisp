@@ -175,12 +175,13 @@ Used for gathering information on code autodoc via expression-scan."))
   (declare (ignore flat-arg))
   (let ((*in-funs* (cons name *in-funs*)))
     `((,@(denest
+	  (block args-block)
 	  (let (state))
 	  (collecting (:onto arg :collect col-arg :ret nil))
 	  (collecting (:onto key :collect col-key :ret nil))
 	  (collecting (:onto opt :collect col-opt :ret nil))
 	  (collecting (:onto rest :collect col-rest :ret nil))
-	  (after (return-from base-fun
+	  (after (return-from args-block
 		   `(,@arg ,@(when opt `(&key ,@opt))
 			   ,@(when key `(&optional ,@key))
 			   ,@(when rest `(&rest ,@rest)))))
@@ -203,6 +204,9 @@ Used for gathering information on code autodoc via expression-scan."))
 
 (def-base-macro defun (defun name (&rest args) &body body)
   `(,defun ,name ,@(base-fun name args body :flat-arg t)))
+
+(let ((*expression-hook* (compose #'print #'expand-hook)))
+  (expand '(defun sqr (x) (* x x))))
 
 (def-base-macro defmethod
     (defmethod name way/args &optional args/dstr dstr/body &body body)

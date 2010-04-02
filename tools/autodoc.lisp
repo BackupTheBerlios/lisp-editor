@@ -25,10 +25,16 @@ TODO messy file."))
 
 (in-package :gil-autodoc)
 
+(defun serious-string (string)
+  (if-let ((i (position #\Newline string)))
+    (cons (subseq string 0 i) 
+	  (cons :newline (serious-string (subseq string (+ i 1)))))
+    (list string)))
+
 (defun documentation* (of type)
   (typecase-let (docstr (documentation of type))
     (null   nil)
-    (string docstr)
+    (string (glist-list :series (serious-string docstr)))
     (t      (warn "Documentation string ~s not a string!" docstr)
             "Doc string was not an object.")))
 
@@ -136,7 +142,8 @@ Probably will want document internal stuff too."
 	     (t
 	      path))))
     (if *path-root-link*
-      (url-link (from-path-root path *path-root-link*) (mention-markup))
+      (url-link (from-path-root path *path-root-link*)
+		(mention-markup))
       (mention-markup))))
 
 ;;Documentation.
@@ -269,7 +276,7 @@ Got ~D here" allow-listing a))))
     (type name args &key with-args (allow-listing (not (eql type 'defun))))
   "Produces a title possibly with arguments."
   (series
-   (string-downcase type) " " (string-downcase name)
+   (string-downcase type) " " (string-downcase name) " "
    (when with-args
      (document-args args :allow-listing allow-listing))))
 
@@ -306,8 +313,8 @@ Got ~D here" allow-listing a))))
     (document :description thing)))
 
 (def-document :full ((thing base-track) &key)
-  (section *full-level* (give-name thing) (document :title thing)
-    (p (document :args thing))
+  (section *full-level* (give-name thing) (document :title-with-args thing)
+;    (p (document :args thing))
     (document :description thing)
     (p (document :dep thing))))
 
@@ -377,7 +384,8 @@ Got ~D here" allow-listing a))))
 
 (def-document-form :description defpackage (name &rest assoc)
   (or (track-data (access-result 'defpackage name) :documentation)
-      (cadr(assoc :documentation assoc))
+      (glist-list :series 
+	(serious-string (cadr(assoc :documentation assoc))))
       (documentation* (to-package name) t)))
 
 (def-document :file-origin ((track track-package) &key)

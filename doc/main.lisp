@@ -114,5 +114,4 @@ Disrecommended, if you want to add files, use expr-scan manually, or just\
 	  (*following-directory* "../htdocs/autodoc/"))
       (call autodoc))))
 
-;(time (make-website)) ;TODO it is warning me a bit.
-
+(time (make-website)) ;TODO it is warning me a bit.
