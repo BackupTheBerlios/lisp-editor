@@ -94,18 +94,19 @@ way:
 (defmacro basic-lang (lang)
   "Basic methods for all languages.."
   `(progn 
-     (defmethod i-call ((lang ,lang) (null null))
+     (defmethod i-call ((lang (eql ,lang)) (null null))
        (declare (ignore lang null)))
 
-     (defmethod i-call ((lang ,lang) (fun function))
+     (defmethod i-call ((lang (eql ,lang)) (fun function))
        (declare (ignore lang))
        (funcall fun))
 
-     (defmethod i-call ((lang ,lang) (glist-obj glist-obj))
+     (defmethod i-call ((lang (eql ,lang)) (anything t))
+       anything)
+
+     (defmethod i-call ((lang (eql ,lang)) (glist-obj glist-obj))
        (with-slots (way objects) glist-obj
 	 (i-glist lang way objects)))))
-
-(basic-lang t)
 
 (defmacro def-call (object &body body)
   (with-gensyms (lang obj)
@@ -125,8 +126,7 @@ way:
 
 (defun call (thing)
   "Does runs i-call with *lang*"
-  (i-call *lang* thing)
-  (values)) ;Note see glist-list.
+  (i-call *lang* thing))
 
 (defun call-list (list)
   (mapcar #'call list))

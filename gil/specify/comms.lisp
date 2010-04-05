@@ -10,20 +10,45 @@
 (cl:in-package :cl-user)
 
 (defpackage :gil-comms
-  (:use :common-lisp :gil)
+  (:use :common-lisp :generic :alexandria :gil :gil-vars)
   (:export
-   *cur-page* *cur-pos* *cur-char-depth* 
-   *cur-directory*
-   *links* *dead-links* *double-links*
+   *pages* get-page *cur-page*
+   page page-name page-nr page-directory
+   *links* get-link
+;link-entry url-entry link-page link-url ;TODO probably bring them here.
+   *dead-links* *double-links*
+   *cur-pos*
    *contents* *enclosure* *comments-thread* *most-significant-section*
-   *notables*)
+   *notables*
+   
+   *cur-char-depth*)
   (:documentation "Various variables communicating from :info and/or\
  such. Not at the user end."))
 
 (in-package :gil-comms)
 
 ;;Internal communication inside packages.(Suggested.)
-(defvar *cur-page* ""
+(defclass page ()
+  ((name :initarg :name :type symbol :reader page-name)
+   (directory :initarg :directory :type string :reader page-directory)
+   (page-nr :initarg :page-nr :type fixnum :reader page-nr)))
+
+(defvar *pages* nil "List of pages.")
+
+(defvar *page-nr* 0 "Max page number.")
+
+(defun get-page (name)
+  "Gets a particular page, creating it if needed."
+  (or (when-let ((got (find (lambda (page)
+			      (eql (page-name page) name)) *pages*)))
+	(setq *page-nr* (page-nr got)))
+      (prog1 (car (push (make-instance 'page :name name
+			  :page-nr *page-nr*
+			  :directory *following-directory*)
+			*pages*))
+	(setf- + *page-nr* 1))))
+
+(defvar *cur-page* nil
   "Suggested variable for communication of current page.")
 (defvar *cur-pos* ""
   "Suggested variable of communication of how one would link\
@@ -31,10 +56,14 @@
 (defvar *cur-char-depth* 0
   "Suggested variable of communication of Current character depth.")
 
-(defvar *cur-directory* "")
-
 (defvar *links* (make-hash-table)
   "Keeps track of links.")
+
+(defun get-link (link-name)
+  (gethash link-name *links*))
+(defun (setf get-link) (to link-name)
+  (setf (gethash link-name *links*) to))
+
 (defvar *dead-links* nil
   "Links that failed to have an end to it.")
 (defvar *double-links* nil

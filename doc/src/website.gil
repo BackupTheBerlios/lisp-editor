@@ -78,7 +78,7 @@ entered, but it is just good habit to fill those.\))
      still missing.))
   
   (section 4 $"autodoc-autodoc" #(Autodocumentation)
-    Package (mention+ $:autodoc-gil autodoc-gil).)))
+    Package (mention+ $:gil-autodoc gil-autodoc).)))
 
 (section 1 $"GIL" #(General Interface Library/Language \(Explanation\))
   

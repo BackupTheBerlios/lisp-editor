@@ -16,8 +16,8 @@ Probably good idea to use combined with denest."
 		:serial t
                 :components
    	        ((:file "gil") ;Base gil defgenerics.
-		 (:file "comms")
 		 (:file "vars")
+		 (:file "comms")
  	         (:file "share") ;Some tools, and variables.
 	         (:file "style")))
 	       (:file "read") ;Syntax for data-like use. TODO improve.

@@ -19,6 +19,8 @@ tracked by gil-info.")
 
 (in-package :gil-html)
 
+(gil::basic-lang :html)
+
 (defun may-indent ()
   (when *attempt-readable* (indent)))
 
@@ -186,18 +188,26 @@ tracked by gil-info.")
   "TODO not very sturdy.."
   (substitute #\_ #\* (apply #'concatenate `(string ,@rest))))
 
-(defun link-url (name &key (page (gil-info::get-link-page name)))
+(defun link-url (name &key (page (get-link name)))
   (typecase page
-    (gil-info::link-entry ;TODO recognize current page.
-     (with-mod-slots "" (gil-info::page gil-info::directory) page
+    (gil-info::link-entry
+     (link-url name :page (gil-info::link-page page)))
+    (page ;TODO recognize current page.
+     (with-mod-slots "" (gil-info::directory) page
        (cond ;;NOTE _nasty_ if bugged!!!
-	 ((and (string= *cur-page* page)
-	       (string= *cur-directory* directory))
+	 ((and *cur-page* (eql (page-name *cur-page*) page))
+	  (assert (string= (page-directory *cur-page*) directory) nil
+		  "Eh why did the page directory change?")
 	  (sanitized-link "#" (string name)))
-	 (t;(string= *cur-page* "")
+	 (*cur-page*
 	  (sanitized-link
-	   (from-path-root directory *cur-directory*)
-	   (string page) ".html#" (string name))))))
+	   (from-path-root directory (page-directory *cur-page*))
+	   (string (page-name page)) ".html#" (string name)))
+	 (t
+	  (warn "Broken link! ~s" name)
+	  (pushnew name *dead-links*)
+	  (sanitized-link directory 
+	    (string(page-name page)) ".html#" (string name))))))
     (gil-info::url-entry
      (slot-value page 'gil-info::url))
     (null ;Keep a list of failed links.
@@ -258,35 +268,33 @@ tracked by gil-info.")
 (def-glist (section section) objects
   (denest
    (with-slots (gils::level gils::name gils::title) section)
-   (let ((*cur-pos* gils::name)))
-   (flet ((result ()
-	    (glist-list :series
-	      (cons (link-pos gils::name
-		      (header gils::level gils::title))
-		    objects)))))
-   (cond ;Note: link wraps round whole thing.
+   (cond
      ((> gils::level *section-page-level*)
-      (call (result)))
+      (call (link-pos gils::name
+		      (header gils::level gils::title)))
+      (call-list objects))
      (t
       (assert gils::name nil ;TODO get around it?
-	      "To paginate a section, it _must_ have a name.")
-      (let*((*cur-page*      gils::name)
-	    (*cur-directory* *following-directory*))
+	      "To paginate a section, it _must_ have a name for html.")
+      (let*((*cur-page* (get-page gils::name)))
 	(with-open-file
 	    (*standard-output*
 	     (sanitized-link
-	      *cur-directory* (format nil "~a" gils::name) ".html")
+	      (page-directory *cur-page*)
+	      (format nil "~a" gils::name) ".html")
 	     :direction :output
 	     :if-exists :supersede :if-does-not-exist :create)
 	  (surround "head" ;TODO better header making.
 	    (surround "title" (call gils::title))
 	    (style))
 	  (let ((*indent-depth* 0))
-	    (call (funcall *handle-page* (result))))))
+	    (call (funcall *handle-page* 
+			   gils::name 
+			   (link-pos gils::name
+				     (header gils::level gils::title))
+			   objects)))))
       ;Return a notice of a linked section.
-      (call
-       (p(link gils::name
-	   (format nil "-> section ~D has own page" gils::name))))))))
+      (call (has-own-page gils::name))))))
 
 ;;Images. 
 (def-glist (image base-image) objects
@@ -314,8 +322,7 @@ tracked by gil-info.")
   (assert *in-table* nil "Table elements _must_ be in a table!")
   (with-slots (gils::x-size gils::y-size
 	       gils::x-align gils::y-align gils::x-span gils::y-span
-	       gils::contents) 
-      table-el
+	       gils::contents) table-el
     (let ((*in-table* nil))
       (surround
        (format nil "td~{ ~a~}"

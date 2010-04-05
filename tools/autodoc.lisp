@@ -14,14 +14,12 @@
 	:package-stuff :path-stuff
 	:gil :gil-share 
 	:expression-scan)
-  (:export mention-obj mention mention-path mention+
-	   *path-root-mention* *path-root-link*
-	   document def-document def-document-form
-	   *mentionable-dependency*)
+  (:export 
+   *mentionable-dependency* *path-root-mention* *path-root-link*
+   mention-obj mention mention-path mention+ document
+   def-document def-document-form)	  
   (:documentation "Produces GIL 'code' documentation.
-Note: keyword 'way' arguments are the defaults.
-
-TODO messy file."))
+Note: keyword 'way' arguments are the defaults."))
 
 (in-package :gil-autodoc)
 
@@ -32,15 +30,12 @@ TODO messy file."))
     (list string)))
 
 (defun documentation* (of type)
+  "Get documentatation string formatted for gil."
   (typecase-let (docstr (documentation of type))
     (null   nil)
     (string (glist-list :series (serious-string docstr)))
     (t      (warn "Documentation string ~s not a string!" docstr)
             "Doc string was not an object.")))
-
-(defvar *autodoc-dir* ""
-  "Autodocumentation automatically to separate directory.
-TODO implement")
 
 (defvar *also-internal* nil
   "Whether to also document the internal variables.")
@@ -76,24 +71,27 @@ Probably will want document internal stuff too."
 
 (defmethod give-name ((vector vector))
   (when (documented-p (aref vector 0) (aref vector 1))
-    (give-name (access-result (aref vector 0) (aref vector 1)))))
+    (gil-vars:gil-intern
+     (give-name (access-result (aref vector 0) (aref vector 1))))))
 
 (defmethod give-name ((null null)))
 
 (defmethod give-name ((tf track-form))
-  (destructuring-bind (type name &rest ignore)
-      (slot-value tf 'expr-scan::form)
-    (declare (ignore ignore))
-    (if (eql type 'defpackage)
-      (give-name (find-package name))
-      (format nil "~a_~a_~a" (to-package-name name) type name))))
+  (gil-vars:gil-intern
+   (destructuring-bind (type name &rest ignore)
+       (slot-value tf 'expr-scan::form)
+     (declare (ignore ignore))
+     (if (eql type 'defpackage)
+       (give-name (find-package name))
+       (format nil "~a_~a_~a" (to-package-name name) type name)))))
 
 (defmethod give-name ((fun track-fun))
-  (with-slots (type name) fun
-    (format nil "~a_~a_~a" (to-package-name name) type name)))
+  (gil-vars:gil-intern
+   (with-slots (type name) fun
+     (format nil "~a_~a_~a" (to-package-name name) type name))))
 
 (defmethod give-name ((package package))
-  (format nil "Package_~a" (package-name package)))
+  (gil-vars:gil-intern (format nil "Package_~a" (package-name package))))
 
 ;;Mentioning stuff.
 (defun mention-obj (mentioned objects &key (start 0))
@@ -153,11 +151,16 @@ Probably will want document internal stuff too."
 (defmacro def-document (manner (object &rest keys) &body body)
   "Define (part of) a documenter of a object."
   (assert (eql (car keys) '&key) nil "Must start with a &key")
-  (with-gensyms (man)
+  (with-gensyms (man overrider)
     `(defmethod document
 	 (,(if (keywordp manner) `(,man (eql ,manner)) manner) ,object
 	  ,@keys)
-       ,@body)))
+       (if-let (,overrider(typecase ,(delist object)
+			    ((or symbol string package list) nil)
+			    (t (slot-value ,(delist object)
+					   'expr-scan::overrider))))
+	 (document ,(if (symbolp manner) manner (car manner)) ,overrider)
+	 (progn ,@body)))))
 
 (defmethod document (thing way &key)
   (declare (ignore thing way)))
@@ -342,6 +345,9 @@ Got ~D here" allow-listing a))))
 ;  (with-slots (fun-dep var-dep)
 ;      (document-dep 
 
+;;Don't document methods (yet)
+(def-document (anything t) ((method track-method) &key))
+
 ;;Document generic function.
 (def-document :title ((fun track-generic) &key with-args)
   (destructuring-bind (name args &rest stuff)
@@ -431,16 +437,17 @@ Got ~D here" allow-listing a))))
 (def-document (way symbol) ((object-list list) &key)
   "Other types of documenting a list of objects."
   (glist-list :series
-    (mapcar (lambda (obj) (document way obj)) object-list)))
+    (mapcar (curry #'document way) object-list)))
 
 ;;Functions to handle lists of objects (from packages)
-(defun sort-objects (list &optional (sort-compare :alphabetic))
+(defun sort-objects (list &optional (sort-compare :default))
   "Sorts objects."
   (sort list
 	(case sort-compare
-	  (:alphabetic
+	  (:default
 	   (lambda (a b)
-	     (string> (expr-scan::name a) (expr-scan::name b))))
+	     (or (string> (expr-scan::etype a) (expr-scan::etype b))
+		 (string> (expr-scan::name a) (expr-scan::name b)))))
 	  (t
 	   sort-compare))))
 
@@ -449,7 +456,7 @@ Got ~D here" allow-listing a))))
     (when-let (res (access-result by-name sym))
       (push res list))))
 
-(defun get-external-objects (package &optional (sort-compare :alphabetic))
+(defun get-external-objects (package &optional (sort-compare :default))
   "Gets sorted external objects of package."
   (let (list)
     (do-external-symbols (sym package)
@@ -457,7 +464,7 @@ Got ~D here" allow-listing a))))
 	(gen:setf- append list (get-objects-of-sym sym))))
     (sort-objects list sort-compare)))
 
-(defun get-internal-objects (package &optional (sort-compare :alphabetic))
+(defun get-internal-objects (package &optional (sort-compare :default))
   (let (list)
     (do-symbols (sym package)
       (when (and (same-package sym package) (not (external-p sym)))
@@ -481,7 +488,7 @@ Got ~D here" allow-listing a))))
     (glist-list :series rest)))
 
 (def-document :whole ((package package)
-		      &key (sort-compare :alphabetic)
+		      &key (sort-compare :default)
 		      (also-internal *also-internal*)
 		      (doc-manners '(:full)))
   (let*((name (give-name package))

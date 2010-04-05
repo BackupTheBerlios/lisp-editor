@@ -1,6 +1,6 @@
 
 (defpackage :lisp-editor-autodoc
-  (:use :common-lisp :generic 
+  (:use :common-lisp :generic :denest
 	:expression-hook :expression-scan
 	:gil :gil-vars :gil-share :gil-style :gil-read
 	:gil-autodoc)

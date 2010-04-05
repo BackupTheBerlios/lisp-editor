@@ -10,11 +10,13 @@
 (cl:in-package :cl)
 
 (defpackage gil-output-util
-  (:use :common-lisp :generic :gil :gil-share :gil-vars :gil-comms)
+  (:use :common-lisp :alexandria :generic
+	:gil :gil-share :gil-vars :gil-comms)
   (:export remove-gratuous-whitespace is-break
 	   *indent-delta* indent add-txt dump-txt
 	   wformat
-	   xml-surround def-xml-surrounding-glist)
+	   xml-surround def-xml-surrounding-glist
+	   has-own-page)
   (:documentation "Some basic utility functions for manipulating strings,\
  writing."))
 
@@ -23,7 +25,7 @@
 (defmacro wformat (str &rest args)
   "Format writer."
   `(progn
-     (when (and (= *cur-char-depth* 0) *attempt-readable*)
+     (when (and (= gil-comms:*cur-char-depth* 0) *attempt-readable*)
        (dotimes (k *indent-depth*)
 	 (write-char #\Space)))
      (format *standard-output* ,str ,@args)))
@@ -101,3 +103,8 @@
   (with-gensyms (objects)
     `(def-glist ,way ,objects
        (xml-surround ,with (call-list ,objects)))))
+
+(defun has-own-page (name)
+  "Message that a section has it's own name.
+TODO make write-rapport that notes if this is wrongly so."
+  (p(link name (format nil "-> section ~D has own page" name))))

@@ -46,11 +46,13 @@ TODO:
 	    defined-by)))
 
 (defun dep-link (depend in-package)
-  (with-slots (fun-dep var-dep) depend
-    (append (mapcan (when-access '(defun defmacro defgeneric) in-package)
-		    fun-dep)
-	    (mapcan (when-access '(defvar defparameter) in-package) 
-		    var-dep))))
+  (if-let (overrider (slot-value depend 'expr-scan::overrider))
+    (dep-link overrider in-package)
+    (with-slots (fun-dep var-dep) depend
+      (append (mapcan (when-access '(defun defmacro defgeneric) in-package)
+		      fun-dep)
+	      (mapcan (when-access '(defvar defparameter) in-package) 
+		      var-dep)))))
 
 (defun direct-connection-p (graph from to)
   "If exists, finds connection between two nodes."
@@ -86,8 +88,7 @@ TODO:
 	(defgeneric
 	 (dep-link track pkg))))))
 
-(defmethod graph-object-points-to
-    ((graph (eql 'full)) (fun track-fun))
+(defmethod graph-object-points-to ((graph (eql 'full)) (fun track-fun))
   (dep-link fun (package-keyword (name fun))))
 
 ;;TODO recognize identically linked methods.

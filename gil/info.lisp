@@ -22,32 +22,28 @@ Gathering contents also registers and handles links if not already\
 (in-package :gil-info)
 
 (defclass link-entry ()
-  ((page :initarg :page :type symbol)
-   (directory :initarg :directory :type string)))
+  ((page :initarg :page :type page :reader link-page)))
+
+(defmethod page-directory ((entry link-entry))
+  (page-directory (link-page entry)))
 
 ;;Link stuff
-(defun link-to-keyword (link-name)
-  (intern (format nil "~a" link-name) :keyword))
-
-(defun get-link-page (link-name)
-  (gethash (link-to-keyword link-name) *links*))
-(defun (setf get-link-page) (to link-name)
-  (setf (gethash (link-to-keyword link-name) *links*) to))
 
 (defun register-link (link-name)
   "Registers a link to be at some location."
   (when link-name
-    (typecase (get-link-page link-name)
+    (typecase (get-link link-name)
       (link-entry
        (warn "Position that can be linked to created twice. 
 Links might go not as intended! Link name: ~a
 Page ~a changed to page ~a."
-	     link-name (slot-value (get-link-page link-name) 'page)
+	     link-name (slot-value (get-link link-name) 'page)
 	     *cur-page*)))
-    (setf (get-link-page link-name)
-	  (make-instance 'link-entry
-	    :page *cur-page* :directory *cur-directory*))))
+    (setf (get-link link-name)
+	  (make-instance 'link-entry :page *cur-page*))))
 ;;End link stuff.
+
+(gil::basic-lang :info)
 
 (def-call (str string) str)
 (def-call (num number) num)
@@ -103,10 +99,7 @@ Page ~a changed to page ~a."
 	 (call gils::title)
 	 (call-list list))
 	(t ;Produces new page.
-	 (let ((*cur-page*; (gils::intern* gils::name))
-		gils::name)
-	       (*cur-directory* ;Set output directory to where wanted.
-		*following-directory*))
+	 (let ((*cur-page* (get-page gils::name)))
 	   (register-link gils::name)
 	   (call gils::title)
 	   (call-list list)))))))
@@ -124,7 +117,7 @@ Page ~a changed to page ~a."
   ((url :initarg :url :type string)))
 (defun link-to-url (link-name url)
   "Links a link-name to an (arbitrary)url."
-  (setf (get-link-page link-name) (make-instance 'url-entry :url url)))
+  (setf (get-link link-name) (make-instance 'url-entry :url url)))
 
 ;;Listing notables.
 (defclass notable ()

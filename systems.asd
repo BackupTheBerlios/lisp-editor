@@ -33,9 +33,9 @@ TODO:
     (:file "gil-store-log")))))
 
 (defsystem :expression-scan
-  :description "Can create and use expression-hook to obtain information about code.
-Any s-expression can be tracked. (So macros and functions can be tracked.)
-"
+  :description "Can create and use expression-hook to obtain
+ information about code. Any s-expression can be tracked.
+ (So macros and functions can be tracked.)"
   :serial t
   :depends-on (:alexandria :generic :denest :package-stuff :path-stuff :expression-hook :cl-fad :alexandria)
   :components (
@@ -54,9 +54,7 @@ Used for gathering information on code autodoc via expression-scan."
 
 (defsystem :gil-autodoc
   :description "Produces GIL 'code' documentation.
-Note: keyword 'way' arguments are the defaults.
-
-TODO messy file."
+Note: keyword 'way' arguments are the defaults."
   :serial t
   :depends-on (:alexandria :generic :denest :package-stuff :path-stuff :gil :gil-share :expression-scan :alexandria)
   :components (
@@ -176,7 +174,7 @@ so they're applicable to multiple implementations."
   :description "Various variables communicating from :info and/or
  such. Not at the user end."
   :serial t
-  :depends-on (:gil)
+  :depends-on (:generic :alexandria :gil :gil-vars :alexandria)
   :components (
   (:module "gil" :components (
     (:module "specify" :components (
@@ -195,7 +193,7 @@ TODO needs to filter out whitespace gil-execute"
   :description "Some basic utility functions for manipulating strings,
  writing."
   :serial t
-  :depends-on (:generic :gil :gil-share :gil-vars :gil-comms)
+  :depends-on (:alexandria :generic :gil :gil-share :gil-vars :gil-comms :alexandria)
   :components (
   (:module "gil" :components (
     (:module "output" :components (

@@ -57,6 +57,5 @@
 (defun package-keyword (sym)
   (intern (if (packagep sym)
 	    (package-name sym) 
-	    (format nil "~a" sym))
-	  :keyword))
+	    (package-name (find-package sym))) :keyword))
 

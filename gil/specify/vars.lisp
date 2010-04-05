@@ -12,6 +12,7 @@
 (defpackage :gil-vars
   (:use :common-lisp :gil)
   (:export *author*
+   *strings-to-package* gil-intern
    *handle-page* *link-page-style*
    *section-page-level* *section-level-modifier*
    *long-number*
@@ -24,8 +25,18 @@
 
 (defvar *author* nil)
 
+(defvar *strings-to-package* :keyword
+  "Which package to intern strings into")
+(defun gil-intern (sym)
+  (typecase sym
+    (string (intern sym *strings-to-package*))
+    (symbol sym)))
+
 ;;Creation of additional documentation at output-time.
-(defvar *handle-page* #'identity
+(defvar *handle-page* (lambda (name header-result objects)
+			(declare (ignore name))
+			(glist-list :series
+			  (cons header-result objects)))
   "Things that have to be done around a page.")
 
 (defvar *link-page-style* nil "Way the link is\

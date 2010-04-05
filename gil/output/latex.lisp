@@ -26,6 +26,8 @@ TODO equations would be neat to have, and crazy not to have.
 
 (in-package :gil-latex)
 
+(gil::basic-lang :latex)
+
 ;;Surround, same idea as for html, except here styles don't tag along.
 (defmacro surround (with &body body)
   `(surround-fn ,with (lambda () ,@body)))

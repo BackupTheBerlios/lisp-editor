@@ -121,7 +121,7 @@ TODO implement.")
   (glist-list (make-instance 'header :level level) objects))
 
 (defclass section (header)
-  ((name :initarg :name)
+  ((name :initarg :name :type symbol)
    (title :initarg :title)
    (description :initarg :description :initform "" :type string))
   (:documentation
@@ -129,7 +129,7 @@ TODO implement.")
  their level."))
 
 (defmethod i-glist (lang (section section) (objects list))
-  (with-slots (level name title) section
+  (with-slots (level title) section
     (i-glist *lang* :series
       (cons (header level title) objects))))
 
@@ -138,9 +138,11 @@ TODO implement.")
  a header."
   (if name
     (glist-list
-     (make-instance 'section :level level :name name :title (or title name))
+     (make-instance 'section :level level :name (gil-intern name)
+		    :title (or title name))
      objects)
-    (glist-list :series (cons (header level title) objects))))
+    (glist-list :series (cons (link-pos name (header level title))
+			      objects))))
 
 ;;Some page-stuff
 
@@ -154,17 +156,14 @@ TODO implement.")
 
 (defun link (link-name &rest objects)
   "Follow-link."
-  (glist-list (make-instance 'follow-link
-		:name (gen:intern* link-name :gil-share))
+  (glist-list (make-instance 'follow-link :name (gil-intern link-name))
 	      (or objects (list (format nil "~a" link-name)))))
 
 ;;And link-positions; annotations that links can go there by some name.
 (defun link-pos (link-name &rest objects)
   "Adds a notation that links can go here."
-  (glist-list (make-instance 'link :name (gen:intern* link-name
-						      :gils-share))
-	      (or objects
-		      (list (format nil "~a" link-name)))))
+  (glist-list (make-instance 'link :name (gil-intern link-name))
+	      (or objects (list (format nil "~a" link-name)))))
 
 (defclass url-link ()
   ((name :initform "" :initarg :name :type string :reader name))

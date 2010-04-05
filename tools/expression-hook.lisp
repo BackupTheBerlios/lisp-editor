@@ -13,7 +13,6 @@
   (:use :common-lisp :alexandria :denest :package-stuff)
   (:nicknames :expr-hook)
   (:export expand expand-hook expand-mac *expression-hook*
-	   *base-macros* def-base-macro
 	   *in-funs* *eh-funs* *eh-vars* *eh-macs* *eh-sym-macs*
 	   expression-hook-to-macro-hook macro-hook-to-expression-hook)
   (:documentation 
@@ -204,9 +203,6 @@ Used for gathering information on code autodoc via expression-scan."))
 
 (def-base-macro defun (defun name (&rest args) &body body)
   `(,defun ,name ,@(base-fun name args body :flat-arg t)))
-
-(let ((*expression-hook* (compose #'print #'expand-hook)))
-  (expand '(defun sqr (x) (* x x))))
 
 (def-base-macro defmethod
     (defmethod name way/args &optional args/dstr dstr/body &body body)

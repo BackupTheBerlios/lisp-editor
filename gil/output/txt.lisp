@@ -20,6 +20,8 @@ TODO not tested very deeply."))
 
 (in-package :gil-txt)
 
+(gil::basic-lang :txt)
+
 (def-call (str string)
   (add-txt (substitute #\Space #\Newline 
 	    (substitute #\Space #\Tab 
