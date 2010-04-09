@@ -14,7 +14,9 @@
   (:export trust-p thrust-these trust-expr-p)
   (:documentation "Tells you whether to trust expressions, allowing only\
  certain symbols and packages.
-Work in progress (And may turn out too hard to do this way.)"))
+Note that there should be a tight lease on everything.
+
+TODO Work in progress (And may turn out too hard to do this way.)"))
 
 (in-package :code-guard)
 
@@ -128,7 +130,8 @@ Work in progress (And may turn out too hard to do this way.)"))
 (defvar *guards* nil "List of guards.")
 
 (defun guard-name (name)
-  (intern (format nil "GUARD-~a" name)))
+  (declare (type symbol name))
+  (intern (concatenate 'string "GUARD-" (symbol-name name))))
 
 (defmacro def-guard (name (&rest args) &body body)
   "Defines a guard onto a function. Essentially you redefine the \
@@ -140,7 +143,10 @@ function/macro see if anything malicious can be done with it, and\
 	      "Function to call if the guards finds something it\
  distrusts.)"
 	      (apply #'error (cons datum arguments))
-	      (values)))
+	      (values))
+	    (guard-assert (test-form datum &rest arguments)
+	      (when test-form
+		(apply #'alarm (cons datum arguments)))))
        (pushnew ',name *guards*)
        (defun ,(guard-name name) (&rest ,form)
 	 (destructuring-bind (,@args) ,form ,@body)))))
@@ -176,8 +182,19 @@ function/macro see if anything malicious can be done with it, and\
 	result
 	(alarm "Disallowed symbol ~s" result)))))
 
+(def-guard apply (fun args)
+  (typecase fun
+    (symbol
+     (assert (trust-p fun) nil "BUG: symbol found here should already have\
+ been noticed as not being trusted!")
+     (if (find fun *guards*) ;But this is really what it is about:
+       (apply (guard-name fun) args) fun))
+    (function
+     (apply fun args))))
+
+(def-guard funcall (fun &rest args)
+  (guard-apply fun args))
 #|(guard ()
-  
 
 ;;Which filesystems are allowed for reading/writing?
 ; All relative to current.
@@ -193,7 +210,6 @@ function/macro see if anything malicious can be done with it, and\
      (error "You may not affect anything from the root. Got ~s" filename)
      (values))
     (
-    
 
  (pathname-directory "jasper/proj")
 |#
@@ -203,5 +219,5 @@ function/macro see if anything malicious can be done with it, and\
 (guarded ()
   (intern "Hax"))
 
-(macroexpand '(guarded ()
-  (funcall (intern "INTERN") "Hax")))
+(guarded ()
+  (funcall (intern "INTERN") "+"))
