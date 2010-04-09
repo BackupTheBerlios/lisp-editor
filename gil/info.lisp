@@ -12,20 +12,13 @@
 (defpackage :gil-info
   (:use :common-lisp :alexandria
 	:denest :gil :gil-vars :gil-comms :gil-share :gil-read)
-  (:export use-contents gather gather-contents
-	   link-to-url)
+  (:export use-contents gather gather-contents)
   (:documentation
    "Contains gathering data for contents, and creation of contents section.
 Gathering contents also registers and handles links if not already\
  registered."))
 
 (in-package :gil-info)
-
-(defclass link-entry ()
-  ((page :initarg :page :type page :reader link-page)))
-
-(defmethod page-directory ((entry link-entry))
-  (page-directory (link-page entry)))
 
 ;;Link stuff
 
@@ -112,12 +105,6 @@ Page ~a changed to page ~a."
 	    (if (listp el)
 	      (call-list el) (call el)))
 	  contents))
-
-(defclass url-entry ()
-  ((url :initarg :url :type string)))
-(defun link-to-url (link-name url)
-  "Links a link-name to an (arbitrary)url."
-  (setf (get-link link-name) (make-instance 'url-entry :url url)))
 
 ;;Listing notables.
 (defclass notable ()

@@ -21,9 +21,9 @@
 	   b i u p-code code quotation
 	   notable note comment
 	   
-	   url-link link-pos
+	   url-link link-pos link-to-url
 	   
-	   lister point-list alt-point-list numbered-list
+	   lister point-list alt-point-list numbered-list description-list
 	   enumerate
 	   
 	   header section
@@ -60,7 +60,7 @@
   "List of described stuff" :descriptions)
 
 (defun enumerate (&rest objects)
-  "Comma-separated objects"
+  "Comma-separated objects. TODO make it an object" 
   (glist-list :series
     (cons (car objects)
 	  (mapcan (lambda (obj) (list ", " obj)) (cdr objects)))))
@@ -68,7 +68,7 @@
 (defmacro def-glist-ignore (way)
   "Default behavior to ignore something, but not the objects."
   `(defmethod i-glist (lang (way ,way) (objects list))
-     (declare (ignore lang way))
+      (declare (ignore lang way))
      (call-list objects)))
 
 (defclass lister ()
@@ -150,6 +150,9 @@ TODO implement.")
   ((name :initarg :name :accessor name :type symbol))
   (:documentation "Denote this position."))
 
+(defmethod gil-comms:link-page ((link link))
+  (gil-comms:find-page (gil-comms:get-link (slot-value link 'name))))
+
 (def-glist-ignore link)
 
 (defclass follow-link (link) () (:documentation "Go to noted position."))
@@ -164,6 +167,11 @@ TODO implement.")
   "Adds a notation that links can go here."
   (glist-list (make-instance 'link :name (gil-intern link-name))
 	      (or objects (list (format nil "~a" link-name)))))
+
+(defun link-to-url (link-name url)
+  "Connects a link-name to an (arbitrary)url."
+  (setf (get-link link-name) (make-instance 'url-entry :url url))
+  nil)
 
 (defclass url-link ()
   ((name :initform "" :initarg :name :type string :reader name))

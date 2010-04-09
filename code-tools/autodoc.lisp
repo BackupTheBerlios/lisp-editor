@@ -189,36 +189,34 @@ Probably will want document internal stuff too."
 (defun document-args
     (args &key (allow-listing t)
      (special-variable-makers '(defvar defparameter) type))
-  (collecting (:onto arg-doc)
-    (dolist (a args)
-      (collecting
-       (cond
-	 ((and (listp a) (not type) allow-listing)
-	  (document-args a :allow-listing allow-listing))
-	 ((case a ((&optional &key &rest) t))
-	  (setq type a) (series (string-downcase a) " "))
-	 ((listp a)
-	  (case type 
-	    (&rest
-	     (error "Found a list in a &rest.\
+  (flet ((arg (a)
+	   (cond
+	     ((and (listp a) (not type) allow-listing)
+	      (document-args a :allow-listing allow-listing))
+	     ((case a ((&optional &key &rest) t))
+	      (setq type a) (series (string-downcase a) " "))
+	     ((listp a)
+	      (case type 
+		(&rest
+		 (error "Found a list in a &rest.\
  (Should be your fault, does CL notice it? ~a" args))
-	    ((&key &optional)
-	     (if-let (special-var
-		      (when (symbolp (cadr a))
-			(access-result special-variable-makers (cadr a))))
-	       (series
-		"(" (string-downcase (car a))
-		(mention-obj
-		 special-var
-		 (list (string-downcase (expr-scan::name special-var))))
-		")")))
-	    (t
-	     (error "Sublisting not allowed, allow-listing=~D
+		((&key &optional)
+		 (if-let (special-var
+		   (when (symbolp (cadr a))
+		     (access-result special-variable-makers (cadr a))))
+		   (series
+		    "(" (string-downcase (car a))
+		    (mention-obj
+		     special-var
+		     (list (string-downcase
+			    (expr-scan::name special-var))))
+		    ")")))
+		(t
+		 (error "Sublisting not allowed, allow-listing=~D
 Got ~D here" allow-listing a))))
-	 (t
-	  (series (string-downcase a) " ")))))
-    (return-from document-args
-      (series "(" (glist-list :series arg-doc) ")"))))
+	     (t
+	      (series (string-downcase a) " ")))))
+    (series "(" (glist-list :series (mapcar #'arg args) ")"))))
 
 ;;Dependency docs.
 (defun package-sorted-symbol-list
@@ -228,25 +226,26 @@ Got ~D here" allow-listing a))))
    (unless (null list))
    (let ((cur "") need-mention))
    (collecting (:onto deps)
-     (dolist (sym list)
-       (when-let (pkg (to-package-name sym))
-	 (cond
-	   ((and (string= pkg cur) need-mention)
-	    (collecting ", " (mention types sym)))
-	   ((not (string= pkg cur))
-	    (setq cur pkg
-		  need-mention (funcall *mentionable-dependency* sym))
-	    (let ((mention (mention types sym)))
-	      (when (and need-mention mention)
-		(collecting
-		 (series (unless (null deps) :newline)
-		   (b "Package "
-		      (mention 'defpackage (intern pkg :keyword)) ": ")
-		   mention)))))))))		
-     (return-from package-sorted-symbol-list
-       (when deps
-	 (section 4 section-name pre-line
-		  (glist-list :series deps))))))
+     (denest
+      (dolist (sym list))
+      (when-let (pkg (to-package-name sym)))
+      (cond
+	((and (string= pkg cur) need-mention)
+	 (collect ", " (mention types sym)))
+	((not (string= pkg cur))
+	 (setq cur pkg
+	       need-mention (funcall *mentionable-dependency* sym))
+	 (let ((mention (mention types sym)))
+	   (when (and need-mention mention)
+	     (collect
+	      (series (unless (null deps) :newline)
+		 (b "Package "
+		    (mention 'defpackage (intern pkg :keyword)) ": ")
+		 mention))))))))
+   (return-from package-sorted-symbol-list
+     (when deps
+       (section 4 section-name pre-line
+		(glist-list :series deps))))))
 
 (defun document-dep (fun-dep var-dep
 		     &key (want-fun t) (want-var t))

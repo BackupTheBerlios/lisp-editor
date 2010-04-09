@@ -14,7 +14,7 @@
   (:use :common-lisp :alexandria :generic :denest
 	:cl-store :store-log :path-stuff
 	:gil :gil-share :gil-vars :gil-comms :gil-read :gil-output-util)
-  (:export)
+  (:export log-execute write-rss)
   (:documentation ""))
 
 (in-package :gil-store-log)
@@ -81,7 +81,7 @@
   (collecting ()
     (map-entries log (entry)
       (when-let (exec (log-execute entry when))
-	(collecting exec)))))
+	(collect exec)))))
 
 ;;RSS stuff.
 (defgeneric write-rss (from &key)
@@ -100,7 +100,7 @@
     (xml-surround "description"
       (^let (*lang* :html) (call description)))))  
 
-(defmethod write-css :around ((entry gil-entry) &key)
+(defmethod write-rss :around ((entry gil-entry) &key)
   (xml-surround "item"
     (with-slots (first-rss-change) entry
       (xml-surround "pubDate"
@@ -113,9 +113,6 @@
      :documentation "Which notables it responds to. Defaultly \"rss-out\".
 Use these to in-effect make a separate categories for the readers.")
    (backup :initform "" :type string)))
-
-(defun rss-output (file &rest notables)
-  (make-instance 'rss-output :file file :notables notables))
 
 (defmethod log-execute ((log gil-log) (output rss-output))
   (denest
@@ -137,8 +134,8 @@ Use these to in-effect make a separate categories for the readers.")
    (with-open-file (*standard-output* file :direction :output
 		    :if-exists :supersede :if-does-not-exist :create)
      ;Header
-     (write-css log :override-notables notables)
+     (write-rss log :override-notables notables)
      (xml-surround "generator" (write-string "gil-store-log"))
      ;Entries
      (dolist (entry list)
-       (write-css entry)))))
+       (write-rss entry)))))

@@ -34,12 +34,12 @@ Default assumes stuff after '.' is to be ignored.")
 
 (defun break-file-to-list (path)
   "Break a file path to a list of directories."
-  (collecting ()
+  (collecting (:ret t)
     (do ((k 0 (+ k 1))
 	 (j -1 j))
-	((>= k (length path)) (collecting (subseq path (+ j 1))))
+	((>= k (length path)) (collect (subseq path (+ j 1))))
       (when (char= (aref path k) #\/)
-	(collecting (subseq path (+ j 1) k))
+	(collect (subseq path (+ j 1) k))
 	(setq j k)))))
 
 (defun write-path

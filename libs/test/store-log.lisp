@@ -72,7 +72,7 @@
       entry)))
 
 (defun test (steps files-per-step)
-  "Steps a bunch of steps, doing random stuff."
+  "Steps a bunch of steps, doing random stuff and checking consistency."
   (when (file-exists-p *testing-directory*) ;Remove previous play.
     (delete-directory-and-files *testing-directory*))
   (ensure-directories-exist *testing-directory*)
@@ -82,7 +82,7 @@
 			   :file "test-log")))
 	(*write-nr* 0) (*check-nr* 0)
 	(data (random 1.0)))
-    ;Initialize, save. 
+   ;Initialize, save. 
     (with-log (*test-log* (make-instance 'rnd-log
 			    :file "test-log" :rnd data))
       (when (= 0 (random 2))
@@ -97,6 +97,7 @@
     (with-log (*test-log* "test-log")
       (assert (= (rnd *test-log*) data) nil "Data did not match.")
       (check-correspondence)))
+
   (delete-directory-and-files *testing-directory*))
 
 (time (test 20 4))

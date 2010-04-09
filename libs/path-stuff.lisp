@@ -77,8 +77,9 @@
 (defun file-extension (file)
   "Gets file extension."
   (let ((file (if (pathnamep file) (file-namestring file) file)))
-    (when-let (i (position #\. file :from-end t))
-      (values (subseq file i) (subseq file 0 i)))))
+    (if-let (i (position #\. file :from-end t))
+      (values (subseq file i) (subseq file 0 i))
+      (values "" ""))))
 
 (defun first-nonexistant-path
     (&key (n 0) append-to time-based

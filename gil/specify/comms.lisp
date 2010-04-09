@@ -12,10 +12,10 @@
 (defpackage :gil-comms
   (:use :common-lisp :generic :alexandria :gil :gil-vars)
   (:export
-   *pages* get-page *cur-page*
+   *pages* find-page get-page *cur-page*
    page page-name page-nr page-directory
    *links* get-link
-;link-entry url-entry link-page link-url ;TODO probably bring them here.
+   link-entry url-entry link-page; link-url ;TODO probably bring them here.
    *dead-links* *double-links*
    *cur-pos*
    *contents* *enclosure* *comments-thread* *most-significant-section*
@@ -37,11 +37,13 @@
 
 (defvar *page-nr* 0 "Max page number.")
 
+(defun find-page (name)
+  (find-if (lambda (page)
+	     (eql (page-name page) name)) *pages*))
+
 (defun get-page (name)
   "Gets a particular page, creating it if needed."
-  (or (when-let ((got (find (lambda (page)
-			      (eql (page-name page) name)) *pages*)))
-	(setq *page-nr* (page-nr got)))
+  (or (find-page name)
       (prog1 (car (push (make-instance 'page :name name
 			  :page-nr *page-nr*
 			  :directory *following-directory*)
@@ -63,6 +65,15 @@
   (gethash link-name *links*))
 (defun (setf get-link) (to link-name)
   (setf (gethash link-name *links*) to))
+
+(defclass link-entry ()
+  ((page :initarg :page :type page :reader link-page)))
+
+(defmethod page-directory ((entry link-entry))
+  (page-directory (link-page entry)))
+
+(defclass url-entry ()
+  ((url :initarg :url :type string)))
 
 (defvar *dead-links* nil
   "Links that failed to have an end to it.")

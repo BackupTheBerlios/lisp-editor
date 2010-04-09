@@ -125,12 +125,13 @@ With-log will read and later write for you."))
 			    0)))
   entry)
 
-(defgeneric add-entry (into-log from &key time)
+(defgeneric add-entry (into-log from &key time root)
   (:documentation "Adds an entry to a log."))
 
 (defmethod add-entry
-    ((log base-log) (file string) &key (time (get-universal-time)))
-  (declare (type integer time))
+    ((log base-log) (file string)
+     &key (time (get-universal-time)) (root *root*))
+  (declare (type integer time) (ignore root))
   (with-slots (last-addition last-action last-encounter) log
     (let ((found (get-entry log file)))
       (cond
@@ -144,12 +145,13 @@ With-log will read and later write for you."))
 				       :creation-time time)))))))
 
 (defmethod add-entry
-    ((log base-log) (file pathname) &key (time (get-universal-time)))
+    ((log base-log) (file pathname) &key
+     (time (get-universal-time)) (root *root*))
   (declare (type integer time))
-  (add-entry log (file file) :time time))
+  (add-entry log (file file) :time time :root root))
 
 (defmethod add-entry
-    ((log base-log) (entry base-entry) &key time root)
+    ((log base-log) (entry base-entry) &key time (root *root*))
   (declare (ignore time) (type (or string pathname null) root))
   (with-slots (file) entry
     (when root ;Change the root.
@@ -159,21 +161,22 @@ With-log will read and later write for you."))
     (setf (get-entry log file) entry)))
 
 (defmethod add-entry ((log base-log) (add-list list) 
-		      &key (time (get-universal-time)))
+		      &key (time (get-universal-time)) (root *root*))
   (dolist (add add-list)
-    (add-entry log add :time time)))
+    (add-entry log add :time time :root root)))
 
 (defmethod add-entry ((log base-log) (add (eql :new-files))
-		      &key (time (get-universal-time)))
+		      &key (time (get-universal-time)) (root *root*))
   (declare (type integer time))
   (dolist (path (cl-fad:list-directory *default-pathname-defaults*))
     (add-entry log (path-stuff:from-path-root (file path))
-	       :time time)))
+	       :time time :root root)))
 
-(defmethod add-entry ((log base-log) (add-log base-log)
-		      &key (time (get-universal-time)))
+(defmethod add-entry
+    ((log base-log) (add-log base-log)
+     &key (time (get-universal-time)) (root (slot-value add-log 'root)))
   (map-entries add-log (entry)
-    (add-entry log entry :time time :root (slot-value add-log 'root))))
+    (add-entry log entry :time time :root root)))
 
 (defmacro add-entry-hook
     (((log log-type) entry &key (time `(time (get-universal-time))))
@@ -183,11 +186,13 @@ With-log will read and later write for you."))
   (with-gensyms (path)
     `(progn
        (defmethod add-entry :around ((,log ,log-type) (,path string)
-				     &key ,time)
-	 (let ((,entry (call-next-method ,log ,path :time time)))
+				     &key ,time (root *root*))
+	 (let ((,entry (call-next-method ,log ,path
+					 :time time :root root)))
 	   ,@body))
-       (defmethod add-entry ((,log ,log-type) (,path pathname) &key ,time)
-	 (add-entry ,log (file ,path) :time time)))))
+       (defmethod add-entry ((,log ,log-type) (,path pathname)
+			     &key ,time (root *root))
+	 (add-entry ,log (file ,path) :time time :root root)))))
 	
 (defgeneric read-log (from)
   (:documentation "Reads a log."))

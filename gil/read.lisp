@@ -24,7 +24,7 @@ TODO needs to filter out whitespace gil-execute")
 
 (defun gil-read-col (stream &key funlike)
   (declare (type stream stream) (type boolean funlike))
-  (collecting () (gil-read stream :fn #'collecting :funlike funlike)))
+  (collecting () (gil-read stream :fn #'collect :funlike funlike)))
 
 (defun gil-read (stream &key fn (buf-i 0) (digit 0) funlike)
   (declare (type stream stream) (type function fn) 
@@ -108,9 +108,9 @@ TODO needs to filter out whitespace gil-execute")
 (defun execute-file (file-name)
   (gil:glist-list :series
     (denest
-     (collecting (:onto list))
+     (collecting (:onto list :ret t))
      (flet ((collect-eval (item)
-	      (collecting (eval item)))))
+	      (collect (eval item)))))
      (let ((len (length file-name)))
        (with-open-file (stream file-name)
 	 (case (intern (file-extension file-name) :keyword)

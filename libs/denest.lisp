@@ -9,8 +9,9 @@
          ;flet/macrolet to user.
 	   after
 	   
-	   accumulating summing collecting appending
-	   besting maximizing minimizing
+	   accumulating accumulate summing sum
+	   collecting collect appending
+	   besting best maximizing maximize minimizing minimalize
 	   
 	   do-1 do-parallel)
   (:documentation "Macro to denest, remove nestedness of macros\
@@ -52,7 +53,8 @@ All the actual version also does is provide a top block."
 
 ;;Accumulators and reducers.
 (defmacro accumulating
-    ((initial onto operation &optional (by-name 'accumulating) without-let)
+    ((initial onto operation &optional (by-name 'accumulate) 
+	                                ret without-let)
      &body body)
   "Alter a variable with an operation, each time accumulation is called,\
  return the result.
@@ -68,25 +70,34 @@ Multiple accumulations need to go by different names."
 		  (list 'setf ',onto
 			(append '(,@operation ,onto) args))))
        ,@body)
-     ,onto))
+     ,@(when ret `(,onto))))
 
 (defmacro summing
-    ((&key (initial 0) (onto (gensym)) (by-name 'summing) without-let)
+    ((&key (initial 0) (onto (gensym)) (by-name 'sum) without-let)
      &body body)
   "Sum everything asked to, return result."
   `(accumulating (,initial ,onto + ,by-name ,without-let) ,@body))
 
 (defmacro collecting ((&key (init '(list)) (onto (gensym))
-                            (collect 'collecting) (append 'appending)
+                            (collect 'collect) (append 'appending)
                             (last (gensym)) (append-1 (gensym))
-			    (ret t))
+			    ret count before-last)
 		      &body body)
   "Collect everything asked to, return result. (Also, appending)
 If you want to use two different collectings, you need to provide the\
  collect argument.(To avoid namespace collision, and to separate the two.)"
-  `(let ((,onto ,init) ,last)
+  (let ((n (if (listp count) (car count) count)))
+  `(let*((,onto ,init) ,last
+	 ,@(typecase count (null) (list count) (symbol `(,count 0)))
+	 ,@(when before-last `(,before-last (last ,onto 2))))
      (declare (ignorable ,onto))
      (labels ((,append-1 (collected)
+		,@(when n
+		    `((setq ,n (+ ,n (length collected)))))
+		,@(when before-last
+		    `((setq ,before-last (or (last collected 2)
+					     collected
+					     ,before-las))))
 		(if (null ,onto)
 		  (setf ,onto collected
 		        ,last (last ,onto))
@@ -98,10 +109,10 @@ If you want to use two different collectings, you need to provide the\
 	      (,collect (&rest collected)
 		(,append-1 collected)))
        ,@body)
-     ,(when ret onto)))
+     ,@(when ret `(,onto)))))
 
 (defmacro besting ((valuator &key intermediate initial (best (gensym))
-			     (by-name 'besting) (changer (gensym)))
+			     (by-name 'best) (changer (gensym)))
 		   &body body)
   "Find best variant of something using function."
   `(let (,@intermediate)
@@ -112,12 +123,12 @@ If you want to use two different collectings, you need to provide the\
 
 (defmacro maximizing ((&optional (initial 0) (max (gensym))) &body body)
   "Maximizes a number. WARNING, TODO can get rid of initial?"
-  `(besting (> :initial ,initial :best ,max :by-name maximizing)
+  `(besting (> :initial ,initial :best ,max :by-name maximize)
      ,@body))
 
 (defmacro minimizing ((&optional (initial 0) (min (gensym))) &body body)
   "Minimized a number. WARNING, TODO can get rid of initial?"
-  `(besting (< :initial ,initial :best ,min :by-name  minimizing) ,@body))
+  `(besting (< :initial ,initial :best ,min :by-name  minimize) ,@body))
 
 ;;Iterating
 (defvar *do-parallel-hash* (make-hash-table)
@@ -172,10 +183,10 @@ If you want to use two different collectings, you need to provide the\
 		     (cdr clause))
 	    (col-var var)
 	    (col-until until)
-	    (col-sym sym-mac)))))
-     (return-from do-parallel 
-       `(symbol-macrolet (,@sym-macs)
-	  ,(if hash
+	    (col-sym sym-mac))))))
+   (return-from do-parallel 
+     `(symbol-macrolet (,@sym-macs)
+	,(if hash
 	     (with-gensyms ((top-block "to-parallel-block"))
 	       `(block ,top-block
 		  `(let (,@(mapcar (rcurry #'subseq 0 2) do-vars))
@@ -187,7 +198,7 @@ If you want to use two different collectings, you need to provide the\
 			      ,(cadr hash))
 		     ,return)))
 	     `(do (,@do-vars) ((or ,@do-until) ,return)
-		,@body)))))))
+		,@body))))))
 
 (defmacro do-1 (clause &body body)
   "Iterates over one thing."

@@ -60,7 +60,8 @@ Used for gathering information on code autodoc via expression-scan."))
 (defvar *discontinue* nil)
 
 (defmacro def-base-macro (name (&rest args) &body body)
-  "Adds a base macro."
+  "Adds a base macro. These are macros that are not expanded by the\
+ expander, but they do define how to scan on from these macros."
   (let ((form (gensym))
 	(base-macro (intern (format nil "BASE-MACRO-~D"
 				    (if (listp name) (car name) name)))))
@@ -77,7 +78,7 @@ Used for gathering information on code autodoc via expression-scan."))
 (defparameter *ignore-packages* ;TODO SBCL specific.
   (list :sb-impl :sb-int :sb-c :sb-pcl :sb-kernel :sb-loop :sb-vm
 	:sb-di)
-  "Packages, when encountered, it stops scanning.")
+  "Packages, when encountered, it does not scan the contents.")
 
 (defun expand (form)
   "Macroexpands form according to the macros and the 'base macros'\
@@ -89,28 +90,31 @@ Used for gathering information on code autodoc via expression-scan."))
  expression hook. You have to call this with your expression hook and use\
  lexical binds to pass information down."
   (denest ;Denest, because COND won't let you make vars.
-  ;Do-nothing.
    (if *discontinue* nil)
-   (if (null form) form)
-  ;Apply possible symbol-macros.
-   (if (symbolp form)
-     (if-let (sm (assoc form *eh-sym-macs*))
-       (caddr sm) form))
+   (typecase form
+     (null
+      form)
+    ;Apply possible symbol-macros.
+     (symbol
+      (if-let (sm (assoc form *eh-sym-macs*))
+	(caddr sm) form))
   ;Something need not care about.
-   (if (not (listp form)) form)
+     ((not list) ;Oh typecase is so awesome.
+      form)
   ;Functions not starting with a symbol. TODO got them all?
-   (if (listp (car form))
-     (case (caar form)
-       (lambda
- 	  (with-gensyms (fn)
-	    (expand-hook `(flet ((,fn ,@(cdar form)))
-			    (,fn ,@(cdr form))))))
-       (t (warn "Unrecognized s-expression car-list. ~a" (car form))
-	  form)))
+     ((cons list)
+      (case (caar form)
+	(lambda
+	   (with-gensyms (fn)
+	     (expand-hook `(flet ((,fn ,@(cdar form)))
+			     (,fn ,@(cdr form))))))
+	(t (warn "Unrecognized s-expression car-list. ~a" (car form))
+	   form))))
+   (t) ;And other cases:
   ;Ignored parts.
    (if (find (symbol-package (car form)) *ignore-packages*
 	     :test #'same-package)
-     form)
+       form)
   ;Possible macrolets.
    (if-let (m (assoc (car form) *eh-macs*))
      (expand (apply(cadr m) (cdr form))))
@@ -135,11 +139,9 @@ Used for gathering information on code autodoc via expression-scan."))
 (def-base-macro let (let (&rest vars) &body body)
   (denest
    (block base-let)
-   (collecting (:onto binds :collect col-bind :ret nil))
-   (collecting (:onto *eh-vars* :collect col-var :ret nil))
-   (after (return-from base-let
-	    `(,let (,@binds) ,@(e-list body))))
-   (dolist (v vars)
+   (collecting (:onto binds :collect col-bind))
+   (collecting (:onto *eh-vars* :collect col-var))
+   (dolist (v vars `(,let (,@binds) ,@(e-list body)))
      (cond
        ((listp v) v
 	(destructuring-bind (var &optional val) v
@@ -176,10 +178,10 @@ Used for gathering information on code autodoc via expression-scan."))
     `((,@(denest
 	  (block args-block)
 	  (let (state))
-	  (collecting (:onto arg :collect col-arg :ret nil))
-	  (collecting (:onto key :collect col-key :ret nil))
-	  (collecting (:onto opt :collect col-opt :ret nil))
-	  (collecting (:onto rest :collect col-rest :ret nil))
+	  (collecting (:onto arg :collect col-arg))
+	  (collecting (:onto key :collect col-key))
+	  (collecting (:onto opt :collect col-opt))
+	  (collecting (:onto rest :collect col-rest))
 	  (after (return-from args-block
 		   `(,@arg ,@(when opt `(&key ,@opt))
 			   ,@(when key `(&optional ,@key))
@@ -238,8 +240,8 @@ Used for gathering information on code autodoc via expression-scan."))
 (defun expand-funs (funs &key flat-arg)
   "Expands flet/macrolet input and returns the names in the second value."
   (denest
-   (collecting (:onto cr :collect col-result :ret nil))
-   (collecting (:onto cn :collect col-names :ret nil))
+   (collecting (:onto cr :collect col-result))
+   (collecting (:onto cn :collect col-names))
    (after (return-from expand-funs (values cr cn)))
    (dolist (fun funs)
      (destructuring-bind (name (&rest args) &body body) fun
@@ -309,10 +311,10 @@ Used for gathering information on code autodoc via expression-scan."))
      ,@(e-list body)))
 
 (def-base-macro setq (setq &rest pairs)
-  `(,setq ,@(denest (summing (:onto k)) (collecting ())
+  `(,setq ,@(denest (summing (:onto k)) (collecting (:ret t))
 		    (dolist (p pairs)
-		      (collecting (if (= (mod k 2) 0) p (expand k)))
-		      (summing 1)))))
+		      (collect (if (= (mod k 2) 0) p (expand k)))
+		      (sum 1)))))
 
 (def-base-macro unwind-protect (unwind-protect protected-form &rest cleanup)
   `(list ',unwind-protect ,(expand protected-form) ,@(e-list cleanup)))
